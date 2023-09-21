@@ -52,28 +52,3 @@ func exampleService(ctx context.Context, val ...interface{}) (err error) {
 		}
 	}
 }
-
-// func shortenRun() {
-
-// 	var shortenString = func(message string) func() string {
-// 		return func() string {
-// 			messageSlice := strings.Split(message, " ")
-// 			wordLength := len(messageSlice)
-// 			if wordLength < 1 {
-// 				return "Nothingn Left!"
-// 			} else {
-// 				messageSlice = messageSlice[:(wordLength - 1)]
-// 				message = strings.Join(messageSlice, " ")
-// 				return message
-// 			}
-// 		}
-// 	}
-
-// 	myString := shortenString("Welcome to concurrency in Go! ...")
-// 	fmt.Println(myString())
-// 	fmt.Println(myString())
-// 	fmt.Println(myString())
-// 	fmt.Println(myString())
-// 	fmt.Println(myString())
-// 	fmt.Println(myString())
-// }
