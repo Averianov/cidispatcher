@@ -1,6 +1,7 @@
 package dispatcher
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -9,42 +10,38 @@ import (
 var D *Dispatcher
 
 func TestDispatcher(t *testing.T) {
-	D = CreateDispatcher()
-	tsk := D.AddTask("testService", RUN, testService)
-	go tsk.Tracker()
-	time.Sleep(time.Second * 6)
-	//tsk.Stop()
-	time.Sleep(time.Second * 14)
-}
-
-func testService(down chan struct{}, errch chan error, val ...interface{}) {
-	var err error
 	defer func() {
-		errch <- err
+		if recoverErr := recover(); recoverErr != nil {
+			L.Alert(TestDispatcher, "Critical error in main: %v", recoverErr)
+		}
 	}()
 
-	var done chan struct{} = make(chan struct{})
-	service := func() <-chan struct{} {
-		for i := 0; i < 3; i++ {
+	D = CreateDispatcher(0)
+	tsk := D.AddTask("exampleService", STOP, exampleService)
+	go func() {
+		tsk.Start()
+		time.Sleep(time.Second * 9)
+		tsk.Stop()
+		time.Sleep(time.Second * 120)
+	}()
+
+	D.Tracker()
+}
+
+func exampleService(ctx context.Context, val ...interface{}) (err error) {
+	i := 0
+	for {
+		i++
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			// if i == 3 { // when do panic
+			// 	a := 0
+			// 	fmt.Printf("division by zero %v \n", (1 / a))
+			// }
 			fmt.Printf("test %v\n", i)
 			time.Sleep(time.Second)
-		}
-		done <- struct{}{}
-		return done
-	}
-
-	//go service()
-
-	for {
-		select {
-		case <-service():
-			errch <- nil
-			return
-
-		case <-down:
-			err = fmt.Errorf("test down signal")
-			errch <- err
-			return
 		}
 	}
 }
