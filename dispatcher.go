@@ -61,19 +61,21 @@ func (d *Dispatcher) Tracker() {
 						if task.Must == RUN {
 							L.Info(d.Tracker, "task %s; Up service", task.Name)
 							if task.Current == STOP {
-								task.Locker.Lock()
-								task.Ctx, task.Cancel = context.WithCancel(context.Background())
-								task.Locker.Unlock()
-								L.Info(d.Tracker, "launched task %s", task.Name)
-								go task.ServiceTemplate()
+								if task.Service != nil {
+									task.Locker.Lock()
+									task.Ctx, task.Cancel = context.WithCancel(context.Background())
+									task.Locker.Unlock()
+									L.Info(d.Tracker, "launched task %s", task.Name)
+									go task.ServiceTemplate()
+								} else {
+									L.Info(d.Tracker, "service %s not available", task.Name)
+								}
 							}
 						}
+
 						if task.Must == STOP {
 							L.Info(d.Tracker, "task %s; Down service", task.Name)
-							go func() {
-								task.Cancel()
-								L.Info(d.Tracker, "after Ctx Cancel")
-							}()
+							task.Cancel()
 						}
 
 					}
@@ -96,7 +98,6 @@ func (d *Dispatcher) RemoveTask(t *Task) {
 	for {
 		if t.Current == STOP {
 			delete(d.Tasks, t.Name)
-			t = nil
 			return
 		} else if t.Must == RUN {
 			t.Stop()

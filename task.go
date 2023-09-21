@@ -35,6 +35,7 @@ func (task *Task) ServiceTemplate() {
 			L.Alert(task.ServiceTemplate, "Critical error in service %s: %v", task.Name, recoverErr)
 			task.Error <- fmt.Errorf("%v", recoverErr)
 		}
+		//L.Info(task.Start, "defer in %s", task.Name)
 		task.Locker.Lock()
 		task.Current = STOP
 		task.Locker.Unlock()
@@ -43,7 +44,12 @@ func (task *Task) ServiceTemplate() {
 	task.Current = RUN
 	task.Locker.Unlock()
 
-	task.Error <- task.Service(task.Ctx)
+	//task.Error <- task.Service(task.Ctx)
+	err := task.Service(task.Ctx)
+	if err != nil {
+		task.Error <- err
+	}
+	//L.Info(task.Start, "end in %s", task.Name)
 }
 
 func (task *Task) Start() {
