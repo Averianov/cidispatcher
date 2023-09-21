@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	sl "github.com/Averianov/cisystemlog"
@@ -38,8 +39,11 @@ func CreateDispatcher(cd time.Duration) (d *Dispatcher) {
 	return
 }
 
-func (d *Dispatcher) Tracker() {
-	L.Info(d.Tracker, "start Dispatcher")
+func (d *Dispatcher) Start() (err error) {
+	defer func() {
+		err = fmt.Errorf("Dispatcher was down")
+	}()
+	L.Info(d.Start, "start Dispatcher")
 	timeToCheck := true
 	tick := time.NewTicker(d.CheckDureation)
 
@@ -50,31 +54,31 @@ func (d *Dispatcher) Tracker() {
 
 		case err := <-d.Error: // if end or crash service
 			if err != nil {
-				L.Alert(d.Tracker, "%v", err)
+				L.Alert(d.Start, "%v", err)
 			}
 		default:
 			if timeToCheck {
 				for _, task := range d.Tasks {
 					if task.Current != task.Must {
-						L.Info(d.Tracker, "task %s need action; Must: %s; Current: %s", task.Name, string(task.Must), string(task.Current))
+						L.Info(d.Start, "task %s need action; Must: %s; Current: %s", task.Name, string(task.Must), string(task.Current))
 
 						if task.Must == RUN {
-							L.Info(d.Tracker, "task %s; Up service", task.Name)
+							L.Info(d.Start, "task %s; Up service", task.Name)
 							if task.Current == STOP {
 								if task.Service != nil {
 									task.Locker.Lock()
 									task.Ctx, task.Cancel = context.WithCancel(context.Background())
 									task.Locker.Unlock()
-									L.Info(d.Tracker, "launched task %s", task.Name)
+									L.Info(d.Start, "launched task %s", task.Name)
 									go task.ServiceTemplate()
 								} else {
-									L.Info(d.Tracker, "service %s not available", task.Name)
+									L.Info(d.Start, "service %s not available", task.Name)
 								}
 							}
 						}
 
 						if task.Must == STOP {
-							L.Info(d.Tracker, "task %s; Down service", task.Name)
+							L.Info(d.Start, "task %s; Down service", task.Name)
 							task.Cancel()
 						}
 

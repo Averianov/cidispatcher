@@ -31,7 +31,7 @@ func TestDispatcher(t *testing.T) {
 		os.Exit(0)
 	}()
 
-	D.Tracker()
+	D.Start()
 }
 
 func exampleService(ctx context.Context, val ...interface{}) (err error) {
