@@ -10,6 +10,7 @@ import (
 
 var L *sl.Logs
 
+type Daemon string
 type Status rune
 
 const (
@@ -19,18 +20,22 @@ const (
 )
 
 type Dispatcher struct {
-	Tasks          map[string]*Task
-	Variables      map[string]chan interface{}
+	Tasks          map[Daemon]*Task
+	Variables      map[Daemon]chan interface{}
 	Error          chan error
 	CheckDureation time.Duration
 }
 
-func CreateDispatcher(cd time.Duration) (d *Dispatcher) {
-	L = sl.CreateLogs(false, 10)
-	go L.StartLoggerAgent(make(chan string))
+// CreateDispatcher make dispatcher object where cd is duration for check tasks
+func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
+	if l == nil {
+		L = sl.CreateLogs(false, 5)
+	} else {
+		L = l
+	}
 
 	d = &Dispatcher{
-		Tasks: map[string]*Task{},
+		Tasks: map[Daemon]*Task{},
 	}
 	if cd == 0 {
 		d.CheckDureation = CHECK_DURATION
@@ -92,7 +97,7 @@ func (d *Dispatcher) Start() (err error) {
 	}
 }
 
-func (d *Dispatcher) AddTask(name string, must Status, service func(context.Context, ...interface{}) error) (t *Task) {
+func (d *Dispatcher) AddTask(name Daemon, must Status, service func(context.Context, ...interface{}) error) (t *Task) {
 	t = CreateTask(name, must, d.Error, service)
 	d.Tasks[t.Name] = t
 	return

@@ -13,11 +13,11 @@ var D *Dispatcher
 func TestDispatcher(t *testing.T) {
 	defer func() {
 		if recoverErr := recover(); recoverErr != nil {
-			L.Alert(TestDispatcher, "Critical error in main: %v", recoverErr)
+			fmt.Printf("Critical error in main: %v", recoverErr)
 		}
 	}()
 
-	D = CreateDispatcher(0)
+	D = CreateDispatcher(nil, 0)
 	tsk := D.AddTask("exampleService", STOP, exampleService)
 	go func() {
 		tsk.Start()

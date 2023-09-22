@@ -10,14 +10,14 @@ type Task struct {
 	Locker  sync.Mutex
 	Ctx     context.Context
 	Cancel  context.CancelFunc
-	Name    string
+	Name    Daemon
 	Service func(context.Context, ...interface{}) error
 	Error   chan error // if crash service			-> try return to status RUN
 	Must    Status     // for check differents status
 	Current Status     // for check differents status
 }
 
-func CreateTask(name string, must Status, errChanel chan error, service func(context.Context, ...interface{}) error) (t *Task) {
+func CreateTask(name Daemon, must Status, errChanel chan error, service func(context.Context, ...interface{}) error) (t *Task) {
 	t = &Task{
 		Name:    name,
 		Service: service,
