@@ -18,15 +18,18 @@ func TestDispatcher(t *testing.T) {
 	}()
 
 	D = CreateDispatcher(nil, 0)
-	tsk := D.AddTask("exampleService", STOP, exampleService)
+	tsk1 := D.AddTask("exampleService", STOP, exampleService)
+	tsk2 := D.AddTask("exampleService2", STOP, exampleService)
+	tsk2.Required = append(tsk2.Required, tsk1)
+
 	go func() {
-		tsk.Start()
-		time.Sleep(time.Second * 6)
-		tsk.Stop()
-		time.Sleep(time.Second * 10)
-		D.RemoveTask(tsk)
+		tsk2.Start()
+		time.Sleep(time.Second * 16)
+		tsk2.Stop()
+		time.Sleep(time.Second * 20)
+		D.RemoveTask(tsk2)
 		//tsk = D.Tasks["exampleService"]
-		tsk.Start()
+		tsk2.Start()
 		time.Sleep(time.Second * 10)
 		os.Exit(0)
 	}()

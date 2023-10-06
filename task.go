@@ -7,14 +7,15 @@ import (
 )
 
 type Task struct {
-	Locker  sync.Mutex
-	Ctx     context.Context
-	Cancel  context.CancelFunc
-	Name    Daemon
-	Service func(context.Context, ...interface{}) error
-	Error   chan error // if crash service			-> try return to status RUN
-	Must    Status     // for check differents status
-	Current Status     // for check differents status
+	Locker   sync.Mutex
+	Ctx      context.Context
+	Cancel   context.CancelFunc
+	Name     Daemon
+	Service  func(context.Context, ...interface{}) error
+	Error    chan error // if crash service			-> try return to status RUN
+	Must     Status     // for check differents status
+	Current  Status     // for check differents status
+	Required []*Task
 }
 
 func CreateTask(name Daemon, must Status, errChanel chan error, service func(context.Context, ...interface{}) error) (t *Task) {

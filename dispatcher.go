@@ -69,15 +69,27 @@ func (d *Dispatcher) Start() (err error) {
 
 						if task.Must == RUN {
 							L.Info(d.Start, "task %s; Up service", task.Name)
+							readyToStart := true
 							if task.Current == STOP {
-								if task.Service != nil {
-									task.Locker.Lock()
-									task.Ctx, task.Cancel = context.WithCancel(context.Background())
-									task.Locker.Unlock()
-									L.Info(d.Start, "launched task %s", task.Name)
-									go task.ServiceTemplate()
-								} else {
-									L.Info(d.Start, "service %s not available", task.Name)
+								for _, req := range task.Required { // try start required services
+									if req.Must == STOP {
+										req.Start()
+									}
+									if req.Current == STOP { // wait when started each required services
+										readyToStart = false
+									}
+								}
+
+								if readyToStart {
+									if task.Service != nil {
+										task.Locker.Lock()
+										task.Ctx, task.Cancel = context.WithCancel(context.Background())
+										task.Locker.Unlock()
+										L.Info(d.Start, "launched task %s", task.Name)
+										go task.ServiceTemplate()
+									} else {
+										L.Info(d.Start, "service %s not available", task.Name)
+									}
 								}
 							}
 						}
@@ -89,7 +101,7 @@ func (d *Dispatcher) Start() (err error) {
 
 					}
 				}
-				timeToCheck = false
+				timeToCheck = false // for exclude many check trying
 			} else {
 				time.Sleep(time.Second)
 			}
