@@ -16,6 +16,7 @@ type Task struct {
 	Must     Status     // for check differents status
 	Current  Status     // for check differents status
 	Required []*Task
+	Val      []interface{}
 }
 
 func CreateTask(name Daemon, must Status, errChanel chan error, service func(context.Context, ...interface{}) error) (t *Task) {
@@ -46,7 +47,7 @@ func (task *Task) ServiceTemplate() {
 	task.Locker.Unlock()
 
 	//task.Error <- task.Service(task.Ctx)
-	err := task.Service(task.Ctx)
+	err := task.Service(task.Ctx, task.Val)
 	if err != nil {
 		task.Error <- err
 	}

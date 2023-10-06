@@ -111,6 +111,7 @@ func (d *Dispatcher) Start() (err error) {
 
 func (d *Dispatcher) AddTask(name Daemon, must Status, service func(context.Context, ...interface{}) error, val ...interface{}) (t *Task) {
 	t = CreateTask(name, must, d.Error, service)
+	t.Val = val
 	d.Tasks[t.Name] = t
 	return
 }
