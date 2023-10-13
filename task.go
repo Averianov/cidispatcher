@@ -2,7 +2,6 @@ package dispatcher
 
 import (
 	"context"
-	"fmt"
 	"sync"
 )
 
@@ -32,26 +31,21 @@ func CreateTask(name Daemon, must Status, errChanel chan error, service func(con
 }
 
 func (task *Task) ServiceTemplate() {
+	var err error
 	defer func() {
 		if recoverErr := recover(); recoverErr != nil {
 			L.Alert(task.ServiceTemplate, "Critical error in service %s: %v", task.Name, recoverErr)
-			task.Error <- fmt.Errorf("%v", recoverErr)
+			//task.Error <- fmt.Errorf("%v", recoverErr)
 		}
-		//L.Info(task.Start, "defer in %s", task.Name)
+		L.Info(task.Start, "defer in %s with err %v", task.Name, err)
 		task.Locker.Lock()
 		task.Current = STOP
 		task.Locker.Unlock()
 	}()
-	task.Locker.Lock()
-	task.Current = RUN
-	task.Locker.Unlock()
 
-	//task.Error <- task.Service(task.Ctx)
-	err := task.Service(task.Ctx, task.Val)
-	if err != nil {
-		task.Error <- err
-	}
-	//L.Info(task.Start, "end in %s", task.Name)
+	//task.Error <- task.Service(task.Ctx, task.Val)
+	err = task.Service(task.Ctx, task.Val)
+	//L.Info(task.Start, "end in %s with err %v", task.Name, err)
 }
 
 func (task *Task) Start() {

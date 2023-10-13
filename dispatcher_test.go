@@ -3,7 +3,7 @@ package dispatcher
 import (
 	"context"
 	"fmt"
-	"os"
+	"log"
 	"testing"
 	"time"
 )
@@ -17,40 +17,40 @@ func TestDispatcher(t *testing.T) {
 		}
 	}()
 
-	D = CreateDispatcher(nil, 0)
-	tsk1 := D.AddTask("exampleService", STOP, exampleService)
-	tsk2 := D.AddTask("exampleService2", STOP, exampleService)
-	tsk2.Required = append(tsk2.Required, tsk1)
+	D = CreateDispatcher(nil, 1)
+	tsk1 := D.AddTask("exampleService1", STOP, exampleService, []*Task{}, "exampleService1")
+	tsk2 := D.AddTask("exampleService2", STOP, exampleService, []*Task{tsk1}, "exampleService2")
+	tsk3 := D.AddTask("exampleService3", STOP, exampleService, []*Task{tsk2}, "exampleService3")
 
 	go func() {
-		tsk2.Start()
-		time.Sleep(time.Second * 16)
+		tsk3.Start()
+		time.Sleep(time.Second * 6)
 		tsk2.Stop()
-		time.Sleep(time.Second * 20)
+		time.Sleep(time.Second * 6)
 		D.RemoveTask(tsk2)
-		//tsk = D.Tasks["exampleService"]
-		tsk2.Start()
+		//tsk = D.Tasks["exampleService1"]
 		time.Sleep(time.Second * 10)
-		os.Exit(0)
+		log.Fatal("FATAL") // for look process
 	}()
 
 	D.Start()
 }
 
 func exampleService(ctx context.Context, val ...interface{}) (err error) {
-	i := 10
+	var name string = fmt.Sprintf("%v", val[0])
+	i := 30
 	for {
 		i--
 		select {
 		case <-ctx.Done():
-			fmt.Printf("got done \n")
+			err = fmt.Errorf("got done \n")
 			return
 		default:
 			if i == 0 {
 				//fmt.Printf("division by zero %v \n", (1 / i)) // when do panic
 				return
 			}
-			fmt.Printf("test %v\n", i)
+			fmt.Printf("test %s - %v\n", name, i)
 			time.Sleep(time.Second)
 		}
 	}
