@@ -31,7 +31,7 @@ type Dispatcher struct {
 // CreateDispatcher make dispatcher object where cd is duration for check tasks in seconds
 func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 	if l == nil {
-		L = sl.CreateLogs(false, 5)
+		L = sl.CreateLogs(false, 4, 5)
 	} else {
 		L = l
 	}
@@ -132,6 +132,10 @@ func (d *Dispatcher) Start() (err error) {
 }
 
 func (d *Dispatcher) AddTask(name Daemon, must Status, service func(context.Context, ...interface{}) error, required []*Task, val ...interface{}) (t *Task) {
+	if _, ok := d.Tasks[name]; ok {
+		L.Alert(d.AddTask, "Task with current name is available")
+		return
+	}
 	t = CreateTask(name, must, d.Error, service)
 	t.Val = val
 	t.Required = required
