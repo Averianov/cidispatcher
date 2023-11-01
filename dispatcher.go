@@ -31,7 +31,7 @@ type Dispatcher struct {
 // CreateDispatcher make dispatcher object where cd is duration for check tasks in seconds
 func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 	if l == nil {
-		L = sl.CreateLogs(false, 4, 5)
+		L = sl.CreateLogs(4, 5)
 	} else {
 		L = l
 	}
