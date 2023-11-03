@@ -58,7 +58,8 @@ func (d *Dispatcher) Start() (err error) {
 
 	for {
 		select {
-		case <-tick.C: // wait time to one check
+		case <-tick.C:
+			L.Debug(d.Start, "wait time to one check")
 			timeToCheck = true
 
 		case err := <-d.Error: // if end or crash service

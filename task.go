@@ -2,6 +2,7 @@ package dispatcher
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -35,7 +36,7 @@ func (task *Task) ServiceTemplate() {
 	defer func() {
 		if recoverErr := recover(); recoverErr != nil {
 			L.Alert(task.ServiceTemplate, "Critical error in service %s: %v", task.Name, recoverErr)
-			//task.Error <- fmt.Errorf("%v", recoverErr)
+			err = fmt.Errorf("%v", recoverErr)
 		}
 		L.Info(task.Start, "defer in %s with err %v", task.Name, err)
 		task.Locker.Lock()
