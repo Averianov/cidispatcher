@@ -40,7 +40,7 @@ func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 		Tasks: map[Daemon]*Task{},
 	}
 	if cd == 0 {
-		d.CheckDureation = CHECK_DURATION * time.Second
+		d.CheckDureation = CHECK_DURATION
 	} else {
 		d.CheckDureation = cd * time.Second
 	}
@@ -59,7 +59,7 @@ func (d *Dispatcher) Start() (err error) {
 	for {
 		select {
 		case <-tick.C:
-			L.Debug(d.Start, "wait time to one check")
+			L.Debug(d.Start, "wait time to one check - %v", d.CheckDureation)
 			timeToCheck = true
 
 		case err := <-d.Error: // if end or crash service
