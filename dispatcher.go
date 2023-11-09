@@ -68,6 +68,7 @@ func (d *Dispatcher) Start() (err error) {
 			}
 		default:
 			if timeToCheck {
+				L.Debug(d.Start, "check tasks")
 				for _, task := range d.Tasks {
 					readyToStart := true
 					for _, req := range task.Required {
