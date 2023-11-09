@@ -11,7 +11,7 @@ type Task struct {
 	Ctx      context.Context
 	Cancel   context.CancelFunc
 	Name     Daemon
-	Service  func(context.Context, ...interface{}) error
+	Service  func(*Task) error
 	Error    chan error // if crash service			-> try return to status RUN
 	Must     Status     // for check differents status
 	Current  Status     // for check differents status
@@ -19,7 +19,7 @@ type Task struct {
 	Val      []interface{}
 }
 
-func CreateTask(name Daemon, must Status, errChanel chan error, service func(context.Context, ...interface{}) error) (t *Task) {
+func CreateTask(name Daemon, must Status, errChanel chan error, service func(*Task) error) (t *Task) {
 	t = &Task{
 		Name:    name,
 		Service: service,
@@ -39,13 +39,11 @@ func (task *Task) ServiceTemplate() {
 			err = fmt.Errorf("%v", recoverErr)
 		}
 		L.Info(task.Start, "defer in %s with err %v", task.Name, err)
-		task.Locker.Lock()
-		task.Current = STOP
-		task.Locker.Unlock()
+		task.Stopped()
 	}()
 
 	//task.Error <- task.Service(task.Ctx, task.Val)
-	err = task.Service(task.Ctx, task.Val)
+	err = task.Service(task)
 	//L.Info(task.Start, "end in %s with err %v", task.Name, err)
 }
 
@@ -66,6 +64,13 @@ func (task *Task) Start() {
 	L.Info(task.Start, "start task %s", task.Name)
 }
 
+func (task *Task) Started() {
+	task.Locker.Lock()
+	task.Current = RUN
+	task.Locker.Unlock()
+	L.Info(task.Start, "task %s started", task.Name)
+}
+
 func (task *Task) Stop() {
 	if task.Must == STOP {
 		if task.Current == STOP {
@@ -82,4 +87,11 @@ func (task *Task) Stop() {
 
 	L.Info(task.Stop, "stop task %s", task.Name)
 	return
+}
+
+func (task *Task) Stopped() {
+	task.Locker.Lock()
+	task.Current = STOP
+	task.Locker.Unlock()
+	L.Info(task.Start, "task %s stopped", task.Name)
 }

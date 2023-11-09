@@ -1,7 +1,6 @@
 package dispatcher
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"testing"
@@ -36,13 +35,14 @@ func TestDispatcher(t *testing.T) {
 	D.Start()
 }
 
-func exampleService(ctx context.Context, val ...interface{}) (err error) {
-	var name string = fmt.Sprintf("%v", val[0])
+func exampleService(t *Task) (err error) {
+	var name string = fmt.Sprintf("%v", t.Val[0])
 	i := 30
+	t.Started() // WARNING! Task must be checked as Started from this function (after preparing and befor started)
 	for {
 		i--
 		select {
-		case <-ctx.Done():
+		case <-t.Ctx.Done():
 			err = fmt.Errorf("got done \n")
 			return
 		default:

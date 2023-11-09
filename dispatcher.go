@@ -133,7 +133,7 @@ func (d *Dispatcher) Start() (err error) {
 	}
 }
 
-func (d *Dispatcher) AddTask(name Daemon, must Status, service func(context.Context, ...interface{}) error, required []*Task, val ...interface{}) (t *Task) {
+func (d *Dispatcher) AddTask(name Daemon, must Status, service func(*Task) error, required []*Task, val ...interface{}) (t *Task) {
 	if _, ok := d.Tasks[name]; ok {
 		L.Alert(d.AddTask, "Task with current name is available")
 		return
