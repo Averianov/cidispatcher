@@ -17,7 +17,7 @@ type Status rune
 const (
 	STOP           Status        = 's'
 	RUN            Status        = 'r'
-	CHECK_DURATION time.Duration = time.Second * 3
+	CHECK_DURATION time.Duration = 3
 )
 
 type Dispatcher struct {
@@ -39,11 +39,8 @@ func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 	d = &Dispatcher{
 		Tasks: map[Daemon]*Task{},
 	}
-	if cd == 0 {
-		d.CheckDureation = CHECK_DURATION
-	} else {
-		d.CheckDureation = cd * time.Second
-	}
+	d.CheckDureation = time.Second * cd
+
 	L.Info(CreateDispatcher, "CreateDispatcher")
 	return
 }
@@ -59,17 +56,18 @@ func (d *Dispatcher) Start() (err error) {
 	for {
 		select {
 		case <-tick.C:
-			L.Debug(d.Start, "wait time to one check - %v", d.CheckDureation)
+			// L.Debug(d.Start, "wait time to one check - %v", d.CheckDureation)
 			timeToCheck = true
+			break
 
-		case err := <-d.Error: // if end or crash service
-			if err != nil {
-				L.Alert(d.Start, "%v", err)
-			}
+		// case err := <-d.Error: // if end or crash service
+		// 	if err != nil {
+		// 		L.Alert(d.Start, "%v", err)
+		// 	}
 		default:
 			if timeToCheck {
-				L.Debug(d.Start, "check tasks")
 				for _, task := range d.Tasks {
+					// L.Debug(d.Start, "check task %s", task.Name)
 					readyToStart := true
 					for _, req := range task.Required {
 						if task.Current == RUN { // if required task down or removed, then stop this task

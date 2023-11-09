@@ -38,7 +38,7 @@ func (task *Task) ServiceTemplate() {
 			L.Alert(task.ServiceTemplate, "Critical error in service %s: %v", task.Name, recoverErr)
 			err = fmt.Errorf("%v", recoverErr)
 		}
-		L.Info(task.Start, "defer in %s with err %v", task.Name, err)
+		L.Info(task.Start, "defer in %s with err: %v", task.Name, err)
 		task.Stopped()
 	}()
 
@@ -68,7 +68,7 @@ func (task *Task) Started() {
 	task.Locker.Lock()
 	task.Current = RUN
 	task.Locker.Unlock()
-	L.Info(task.Start, "task %s started", task.Name)
+	L.Info(task.Started, "task %s started", task.Name)
 }
 
 func (task *Task) Stop() {
@@ -93,5 +93,5 @@ func (task *Task) Stopped() {
 	task.Locker.Lock()
 	task.Current = STOP
 	task.Locker.Unlock()
-	L.Info(task.Start, "task %s stopped", task.Name)
+	L.Info(task.Stopped, "task %s stopped", task.Name)
 }
