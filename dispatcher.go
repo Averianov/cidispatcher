@@ -106,7 +106,6 @@ func (d *Dispatcher) Start() (err error) {
 							if readyToStart && task.Current == STOP {
 								if task.Service != nil {
 									task.Locker.Lock()
-									task.Current = RUN
 									task.Ctx, task.Cancel = context.WithCancel(context.Background())
 									task.Locker.Unlock()
 									L.Info(d.Start, "launched task %s", task.Name)
