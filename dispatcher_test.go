@@ -32,7 +32,7 @@ func TestDispatcher(t *testing.T) {
 		log.Fatal("FATAL") // for look process
 	}()
 
-	D.Start()
+	D.Checking()
 }
 
 func exampleService(t *Task) (err error) {
