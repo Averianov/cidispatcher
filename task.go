@@ -7,25 +7,26 @@ import (
 )
 
 type Task struct {
-	Locker   sync.Mutex
-	Ctx      context.Context
-	Cancel   context.CancelFunc
-	Name     Daemon
-	Service  func(*Task) error
-	Error    chan error // if crash service			-> try return to status RUN
-	Must     Status     // for check differents status
-	Current  Status     // for check differents status
-	Required []*Task
-	Val      []interface{}
+	Locker       sync.Mutex
+	Ctx          context.Context
+	Cancel       context.CancelFunc
+	Name         Daemon
+	Service      func(*Task) error
+	Error        chan error // if crash service			-> try return to status true
+	StMustStart  bool       // for check differents status
+	StInProgress bool       // for check when daemon starting
+	StLaunched   bool       // for check differents status
+	Required     []*Task
+	Val          []interface{}
 }
 
-func CreateTask(name Daemon, must Status, errChanel chan error, service func(*Task) error) (t *Task) {
+func CreateTask(name Daemon, must bool, service func(*Task) error) (t *Task) {
 	t = &Task{
-		Name:    name,
-		Service: service,
-		Error:   errChanel,
-		Must:    must,
-		Current: STOP,
+		Name:         name,
+		Service:      service,
+		StMustStart:  must,
+		StInProgress: false,
+		StLaunched:   false,
 	}
 	L.Info(CreateTask, "CreateTask '%s'", t.Name)
 	return
@@ -48,8 +49,8 @@ func (task *Task) ServiceTemplate() {
 }
 
 func (task *Task) Start() {
-	if task.Must == RUN {
-		if task.Current == RUN {
+	if task.StMustStart == true {
+		if task.StLaunched == true {
 			L.Info(task.Start, "service %s already runned", task.Name)
 		} else {
 			L.Info(task.Start, "starting service %s in progress...", task.Name)
@@ -58,7 +59,7 @@ func (task *Task) Start() {
 	}
 
 	task.Locker.Lock()
-	task.Must = RUN
+	task.StMustStart = true
 	task.Locker.Unlock()
 
 	L.Info(task.Start, "start task %s", task.Name)
@@ -66,14 +67,15 @@ func (task *Task) Start() {
 
 func (task *Task) Started() {
 	task.Locker.Lock()
-	task.Current = RUN
+	task.StInProgress = false
+	task.StLaunched = true
 	task.Locker.Unlock()
 	L.Info(task.Started, "task %s started", task.Name)
 }
 
 func (task *Task) Stop() {
-	if task.Must == STOP {
-		if task.Current == STOP {
+	if task.StMustStart == false {
+		if task.StLaunched == false {
 			L.Info(task.Stop, "service %s already stopped", task.Name)
 		} else {
 			L.Info(task.Stop, "stopping service %s in progress...", task.Name)
@@ -82,7 +84,7 @@ func (task *Task) Stop() {
 	}
 
 	task.Locker.Lock()
-	task.Must = STOP
+	task.StMustStart = false
 	task.Locker.Unlock()
 
 	L.Info(task.Stop, "stop task %s", task.Name)
@@ -91,7 +93,8 @@ func (task *Task) Stop() {
 
 func (task *Task) Stopped() {
 	task.Locker.Lock()
-	task.Current = STOP
+	task.StInProgress = false
+	task.StLaunched = false
 	task.Locker.Unlock()
 	L.Info(task.Stopped, "task %s stopped", task.Name)
 }

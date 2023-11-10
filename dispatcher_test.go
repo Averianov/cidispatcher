@@ -17,9 +17,9 @@ func TestDispatcher(t *testing.T) {
 	}()
 
 	D = CreateDispatcher(nil, 2)
-	tsk1 := D.AddTask("exampleService1", STOP, exampleService, []*Task{}, "exampleService1")
-	tsk2 := D.AddTask("exampleService2", STOP, exampleService, []*Task{tsk1}, "exampleService2")
-	tsk3 := D.AddTask("exampleService3", STOP, exampleService, []*Task{tsk2}, "exampleService3")
+	tsk1 := D.AddTask("exampleService1", false, exampleService, []*Task{}, "exampleService1")
+	tsk2 := D.AddTask("exampleService2", false, exampleService, []*Task{tsk1}, "exampleService2")
+	tsk3 := D.AddTask("exampleService3", false, exampleService, []*Task{tsk2}, "exampleService3")
 
 	go func() {
 		tsk3.Start()

@@ -12,11 +12,12 @@ import (
 var L *sl.Logs
 
 type Daemon string
-type Status rune
+
+//type Status bool
 
 const (
-	STOP           Status        = 's'
-	RUN            Status        = 'r'
+	// STOP           bool          = false
+	// RUN            bool          = true
 	CHECK_DURATION time.Duration = 3
 )
 
@@ -24,7 +25,6 @@ type Dispatcher struct {
 	Locker         sync.Mutex
 	Tasks          map[Daemon]*Task
 	Variables      map[Daemon]chan interface{}
-	Error          chan error
 	CheckDureation time.Duration
 }
 
@@ -70,7 +70,7 @@ func (d *Dispatcher) Start() (err error) {
 					// L.Debug(d.Start, "check task %s", task.Name)
 					readyToStart := true
 					for _, req := range task.Required {
-						if task.Current == RUN { // if required task down or removed, then stop this task
+						if task.StLaunched { // if required task down or removed, then stop this task
 							exist := false
 							for _, t := range d.Tasks {
 								if req.Name == t.Name {
@@ -83,27 +83,27 @@ func (d *Dispatcher) Start() (err error) {
 								task.Cancel()
 							}
 						}
-						if task.Must == RUN {
-							if req.Must == STOP {
+						if task.StMustStart {
+							if !req.StMustStart {
 								req.Start() // try start required services
 							}
-							if req.Current == STOP {
+							if !req.StLaunched {
 								readyToStart = false
-								if task.Current == RUN {
+								if task.StLaunched {
 									task.Cancel() // wait when started each required services
 								}
 							}
 						}
 					}
 
-					if task.Current != task.Must {
-						L.Info(d.Start, "task %s need action; Must: %s; Current: %s", task.Name, string(task.Must), string(task.Current))
-
-						if task.Must == RUN {
+					if task.StLaunched != task.StMustStart {
+						L.Info(d.Start, "task %s need action; Must: %s; Current: %s", task.Name, task.StMustStart, task.StLaunched)
+						if task.StMustStart {
 							L.Info(d.Start, "task %s; try Up service", task.Name)
-							if readyToStart && task.Current == STOP {
+							if readyToStart && !task.StLaunched && !task.StInProgress {
 								if task.Service != nil {
 									task.Locker.Lock()
+									task.StInProgress = true
 									task.Ctx, task.Cancel = context.WithCancel(context.Background())
 									task.Locker.Unlock()
 									L.Info(d.Start, "launched task %s", task.Name)
@@ -112,11 +112,13 @@ func (d *Dispatcher) Start() (err error) {
 									L.Info(d.Start, "service %s not available", task.Name)
 								}
 							}
-
 						}
 
-						if task.Must == STOP && task.Current == RUN {
+						if !task.StMustStart && task.StLaunched {
 							L.Info(d.Start, "task %s; Down service", task.Name)
+							task.Locker.Lock()
+							task.StInProgress = true
+							task.Locker.Unlock()
 							task.Cancel()
 						}
 
@@ -130,12 +132,12 @@ func (d *Dispatcher) Start() (err error) {
 	}
 }
 
-func (d *Dispatcher) AddTask(name Daemon, must Status, service func(*Task) error, required []*Task, val ...interface{}) (t *Task) {
+func (d *Dispatcher) AddTask(name Daemon, must bool, service func(*Task) error, required []*Task, val ...interface{}) (t *Task) {
 	if _, ok := d.Tasks[name]; ok {
 		L.Alert(d.AddTask, "Task with current name is available")
 		return
 	}
-	t = CreateTask(name, must, d.Error, service)
+	t = CreateTask(name, must, service)
 	t.Val = val
 	t.Required = required
 	d.Locker.Lock()
@@ -157,13 +159,13 @@ func (d *Dispatcher) RemoveTask(t *Task) {
 	}
 
 	for {
-		if t.Current == STOP {
+		if t.StLaunched == false {
 			d.Locker.Lock()
 			delete(d.Tasks, t.Name)
 			d.Locker.Unlock()
 			L.Info(d.Start, "task %s; deleted", t.Name)
 			return
-		} else if t.Must == RUN {
+		} else if t.StMustStart == true {
 			t.Stop()
 		}
 		time.Sleep(time.Second)
