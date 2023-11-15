@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-var D *Dispatcher
-
 func TestDispatcher(t *testing.T) {
 	defer func() {
 		if recoverErr := recover(); recoverErr != nil {
@@ -16,23 +14,23 @@ func TestDispatcher(t *testing.T) {
 		}
 	}()
 
-	D = CreateDispatcher(nil, 2)
-	tsk1 := D.AddTask("exampleService1", false, exampleService, []*Task{}, "exampleService1")
-	tsk2 := D.AddTask("exampleService2", false, exampleService, []*Task{tsk1}, "exampleService2")
-	tsk3 := D.AddTask("exampleService3", false, exampleService, []*Task{tsk2}, "exampleService3")
+	d := CreateDispatcher(nil, 2)
+	tsk1 := d.AddTask("exampleService1", false, exampleService, []*Task{}, "exampleService1")
+	tsk2 := d.AddTask("exampleService2", false, exampleService, []*Task{tsk1}, "exampleService2")
+	tsk3 := d.AddTask("exampleService3", false, exampleService, []*Task{tsk2}, "exampleService3")
 
 	go func() {
 		tsk3.Start()
 		time.Sleep(time.Second * 6)
 		tsk2.Stop()
 		time.Sleep(time.Second * 6)
-		D.RemoveTask(tsk2)
+		d.RemoveTask(tsk2)
 		//tsk = D.Tasks["exampleService1"]
 		time.Sleep(time.Second * 10)
 		log.Fatal("FATAL") // for look process
 	}()
 
-	D.Checking()
+	d.Checking()
 }
 
 func exampleService(t *Task) (err error) {

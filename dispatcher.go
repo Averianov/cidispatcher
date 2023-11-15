@@ -12,22 +12,20 @@ import (
 )
 
 var L *sl.Logs
+var D *Dispatcher
 
 type Daemon string
 
-//type Status bool
-
 const (
-	// STOP           bool          = false
-	// RUN            bool          = true
 	CHECK_DURATION time.Duration = 3
 )
 
 type Dispatcher struct {
-	Locker sync.Mutex
-	Tasks  map[Daemon]*Task
-	//Variables      map[Daemon]chan interface{}
+	Locker         sync.Mutex
 	CheckDureation time.Duration
+	Exit           chan struct{}
+	Tasks          map[Daemon]*Task
+	//Variables      map[Daemon]chan interface{}
 }
 
 // CreateDispatcher make dispatcher object where cd is duration for check tasks in seconds
@@ -40,8 +38,10 @@ func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 
 	d = &Dispatcher{
 		Tasks: map[Daemon]*Task{},
+		Exit:  make(chan struct{}, 1),
 	}
 	d.CheckDureation = time.Second * cd
+	D = d
 
 	L.Info(CreateDispatcher, "CreateDispatcher")
 	return
@@ -54,52 +54,33 @@ func (d *Dispatcher) Checking() (err error) {
 		}
 	}()
 	L.Info(d.Checking, "start Dispatcher")
-	timeToCheck := true
+	go d.StdIn()
+
+	var mustExit, timeToCheck bool = true, true
 	tick := time.NewTicker(d.CheckDureation)
-
-	stdIn := make(chan string, 1)
-	go func() {
-		var result string
-		fmt.Printf("input in a line\n")
-
-		s := bufio.NewScanner(os.Stdin)
-		for s.Scan() {
-			result = s.Text()
-		}
-		result = s.Err().Error()
-
-		// in := bufio.NewReader(os.Stdin)
-		// result, err = in.ReadString('\n')
-		// if err != nil {
-		// 	result = err.Error()
-		// }
-
-		fmt.Printf("got %s \n", result)
-		stdIn <- result
-	}()
-
 	for {
 		select {
-		case line := <-stdIn:
-			fmt.Printf("stdIn: %s \n", line)
-			if line == "exit" {
-				err = fmt.Errorf("Gracefull shutdown application")
-				return
-			}
-
 		case <-tick.C:
-			// L.Debug(d.Checking, "wait time to one check - %v", d.CheckDureation)
 			timeToCheck = true
 			break
 
-		// case err := <-d.Error: // if end or crash service
-		// 	if err != nil {
-		// 		L.Alert(d.Checking, "%v", err)
-		// 	}
 		default:
 			if timeToCheck {
+				// ### check Gracefull shutdown application ##########
+				mustExit = true
 				for _, task := range d.Tasks {
-					// L.Debug(d.Checking, "check task %s", task.Name)
+					if task.StMustStart || task.StMustStart != task.StLaunched {
+						mustExit = false
+						break
+					}
+				}
+				if mustExit {
+					L.Warning(d.StdIn, "Gracefull shutdown application")
+					d.Exit <- struct{}{}
+				}
+
+				// ### check Tasks #####################################
+				for _, task := range d.Tasks {
 					readyToStart := true
 					for _, req := range task.Required {
 						if task.StLaunched { // if required task down or removed, then stop this task
@@ -217,5 +198,17 @@ func (d *Dispatcher) RemoveTask(t *Task) {
 			t.Stop()
 		}
 		time.Sleep(time.Second)
+	}
+}
+
+func (d *Dispatcher) StdIn() (err error) {
+	for {
+		in := bufio.NewReader(os.Stdin)
+		inpuText, _ := in.ReadString('\n')
+		if inpuText == "exit\n" {
+			for _, task := range d.Tasks {
+				task.StMustStart = false
+			}
+		}
 	}
 }
