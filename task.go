@@ -8,9 +8,10 @@ import (
 
 type Task struct {
 	Locker       sync.Mutex
+	Name         Daemon
 	Ctx          context.Context
 	Cancel       context.CancelFunc
-	Name         Daemon
+	StopFunc     func()
 	Service      func(*Task) error
 	Error        chan error // if crash service			-> try return to status true
 	StMustStart  bool       // for check differents status

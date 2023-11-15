@@ -131,6 +131,9 @@ func (d *Dispatcher) Checking() (err error) {
 								task.StInProgress = true
 								task.Locker.Unlock()
 								L.Info(d.Checking, "down task %s", task.Name)
+								if task.StopFunc != nil {
+									task.StopFunc()
+								}
 								task.Cancel()
 							}
 						}
@@ -145,12 +148,12 @@ func (d *Dispatcher) Checking() (err error) {
 	}
 }
 
-func (d *Dispatcher) AddTask(name Daemon, must bool, service func(*Task) error, required []*Task, val ...interface{}) (t *Task) {
+func (d *Dispatcher) AddTask(name Daemon, mustStart bool, service func(*Task) error, required []*Task, val ...interface{}) (t *Task) {
 	if _, ok := d.Tasks[name]; ok {
 		L.Alert(d.AddTask, "Task with current name is available")
 		return
 	}
-	t = CreateTask(name, must, service)
+	t = CreateTask(name, mustStart, service)
 	t.Val = val
 	t.Required = required
 	d.Locker.Lock()
