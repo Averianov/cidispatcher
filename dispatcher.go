@@ -24,9 +24,9 @@ const (
 )
 
 type Dispatcher struct {
-	Locker         sync.Mutex
-	Tasks          map[Daemon]*Task
-	Variables      map[Daemon]chan interface{}
+	Locker sync.Mutex
+	Tasks  map[Daemon]*Task
+	//Variables      map[Daemon]chan interface{}
 	CheckDureation time.Duration
 }
 
@@ -57,19 +57,31 @@ func (d *Dispatcher) Checking() (err error) {
 	timeToCheck := true
 	tick := time.NewTicker(d.CheckDureation)
 
-	var stdIn chan string
-	var line string
+	stdIn := make(chan string, 1)
 	go func() {
+		var result string
+		fmt.Printf("input in a line\n")
+
 		s := bufio.NewScanner(os.Stdin)
 		for s.Scan() {
-			stdIn <- s.Text()
+			result = s.Text()
 		}
-		stdIn <- s.Err().Error()
+		result = s.Err().Error()
+
+		// in := bufio.NewReader(os.Stdin)
+		// result, err = in.ReadString('\n')
+		// if err != nil {
+		// 	result = err.Error()
+		// }
+
+		fmt.Printf("got %s \n", result)
+		stdIn <- result
 	}()
+
 	for {
 		select {
-		case line = <-stdIn:
-			fmt.Printf("read line: %s-\n", line)
+		case line := <-stdIn:
+			fmt.Printf("stdIn: %s \n", line)
 			if line == "exit" {
 				err = fmt.Errorf("Gracefull shutdown application")
 				return
