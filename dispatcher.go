@@ -1,8 +1,10 @@
 package dispatcher
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -47,14 +49,32 @@ func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 
 func (d *Dispatcher) Checking() (err error) {
 	defer func() {
-		err = fmt.Errorf("Dispatcher was down")
+		if err == nil {
+			err = fmt.Errorf("Dispatcher was down")
+		}
 	}()
 	L.Info(d.Checking, "start Dispatcher")
 	timeToCheck := true
 	tick := time.NewTicker(d.CheckDureation)
 
+	var stdIn chan string
+	var line string
+	go func() {
+		s := bufio.NewScanner(os.Stdin)
+		for s.Scan() {
+			stdIn <- s.Text()
+		}
+		stdIn <- s.Err().Error()
+	}()
 	for {
 		select {
+		case line = <-stdIn:
+			fmt.Printf("read line: %s-\n", line)
+			if line == "exit" {
+				err = fmt.Errorf("Gracefull shutdown application")
+				return
+			}
+
 		case <-tick.C:
 			// L.Debug(d.Checking, "wait time to one check - %v", d.CheckDureation)
 			timeToCheck = true

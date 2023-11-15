@@ -37,10 +37,11 @@ func (task *Task) ServiceTemplate() {
 	var err error
 	defer func() {
 		if recoverErr := recover(); recoverErr != nil {
-			L.Alert(task.ServiceTemplate, "Critical error in service %s: %v", task.Name, recoverErr)
+			L.Alert(task.ServiceTemplate, "Critical error in %s: %v", task.Name, recoverErr)
 			err = fmt.Errorf("%v", recoverErr)
+		} else if err != nil {
+			L.Warning(task.ServiceTemplate, "defer in %s with err: %v", task.Name, err)
 		}
-		L.Info(task.Start, "defer in %s with err: %v", task.Name, err)
 		task.Stopped()
 	}()
 
