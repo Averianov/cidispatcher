@@ -23,7 +23,6 @@ const (
 type Dispatcher struct {
 	Locker         sync.Mutex
 	CheckDureation time.Duration
-	Exit           chan struct{}
 	Tasks          map[Daemon]*Task
 	//Variables      map[Daemon]chan interface{}
 }
@@ -38,7 +37,6 @@ func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 
 	d = &Dispatcher{
 		Tasks: map[Daemon]*Task{},
-		Exit:  make(chan struct{}, 1),
 	}
 	d.CheckDureation = time.Second * cd
 	D = d
@@ -56,7 +54,7 @@ func (d *Dispatcher) Checking() (err error) {
 	L.Info(d.Checking, "start Dispatcher")
 	go d.StdIn()
 
-	var mustExit, timeToCheck bool = true, true
+	var mustExit, timeToCheck, readyToStart bool = true, true, true
 	tick := time.NewTicker(d.CheckDureation)
 	for {
 		select {
@@ -66,22 +64,23 @@ func (d *Dispatcher) Checking() (err error) {
 
 		default:
 			if timeToCheck {
-				// ### check Gracefull shutdown application ##########
+				//### check Gracefull shutdown application ##########
 				mustExit = true
 				for _, task := range d.Tasks {
-					if task.StMustStart || task.StMustStart != task.StLaunched {
+					if task.StMustStart || task.StMustStart != task.StLaunched { // if not ready to shutdown - disable marker
 						mustExit = false
 						break
 					}
 				}
 				if mustExit {
 					L.Warning(d.StdIn, "Gracefull shutdown application")
-					d.Exit <- struct{}{}
+					time.Sleep(time.Second * 3)
+					os.Exit(0)
 				}
 
-				// ### check Tasks #####################################
+				//### check Tasks #####################################
 				for _, task := range d.Tasks {
-					readyToStart := true
+					readyToStart = true
 					for _, req := range task.Required {
 						if task.StLaunched { // if required task down or removed, then stop this task
 							existRequiredTask := false
@@ -205,10 +204,20 @@ func (d *Dispatcher) StdIn() (err error) {
 	for {
 		in := bufio.NewReader(os.Stdin)
 		inpuText, _ := in.ReadString('\n')
-		if inpuText == "exit\n" {
+		switch inpuText {
+		case "exit\n":
+			L.Warning(d.StdIn, "got request for exit")
 			for _, task := range d.Tasks {
 				task.StMustStart = false
 			}
+			break
+		case "tasks\n":
+			L.Info(d.StdIn, "got request for tasks status")
+			for _, task := range d.Tasks {
+				L.Info(d.StdIn, "task %s - Must %v; InProgress %v; Launched %v ",
+					task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
+			}
+			break
 		}
 	}
 }
