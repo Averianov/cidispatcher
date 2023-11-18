@@ -174,14 +174,15 @@ func (d *Dispatcher) AddTask(name Daemon, mustStart bool, service func(*Task) er
 	return
 }
 
-func (d *Dispatcher) RemoveTask(t *Task) {
+func (d *Dispatcher) RemoveTaskAndRequired(t *Task) (ok bool) {
 	L.Info(d.Checking, "task %s; try remove", t.Name)
 
 	for _, task := range d.Tasks {
 		for _, req := range task.Required {
 			if t == req {
-				L.Warning(d.Checking, "Cannot delete task %s because it required for other task", t.Name)
-				return
+				if !d.RemoveTaskAndRequired(task) {
+					return false
+				}
 			}
 		}
 	}
@@ -192,7 +193,7 @@ func (d *Dispatcher) RemoveTask(t *Task) {
 			delete(d.Tasks, t.Name)
 			d.Locker.Unlock()
 			L.Info(d.Checking, "task %s; deleted", t.Name)
-			return
+			return true
 		} else if t.StMustStart == true {
 			t.Stop()
 		}
@@ -208,7 +209,8 @@ func (d *Dispatcher) StdIn() (err error) {
 		case "exit\n":
 			L.Warning(d.StdIn, "got request for exit")
 			for _, task := range d.Tasks {
-				task.StMustStart = false
+				//task.StMustStart = false
+				d.RemoveTaskAndRequired(task)
 			}
 			break
 		case "tasks\n":
