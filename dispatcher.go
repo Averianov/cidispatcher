@@ -41,7 +41,7 @@ func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 	d.CheckDureation = time.Second * cd
 	D = d
 
-	L.Info(CreateDispatcher, "CreateDispatcher")
+	L.Info("CreateDispatcher")
 	return
 }
 
@@ -51,7 +51,7 @@ func (d *Dispatcher) Checking() (err error) {
 			err = fmt.Errorf("Dispatcher was down")
 		}
 	}()
-	L.Info(d.Checking, "start Dispatcher")
+	L.Info("start Dispatcher")
 	go d.StdIn()
 
 	var mustExit, timeToCheck, readyToStart bool = true, true, true
@@ -73,7 +73,7 @@ func (d *Dispatcher) Checking() (err error) {
 					}
 				}
 				if mustExit {
-					L.Warning(d.StdIn, "Gracefull shutdown application")
+					L.Warning("Gracefull shutdown application")
 					time.Sleep(time.Second * 3)
 					os.Exit(0)
 				}
@@ -91,7 +91,7 @@ func (d *Dispatcher) Checking() (err error) {
 							}
 
 							if !existRequiredTask {
-								L.Alert(d.Checking, "required task %s is not exist. Stop task %s", req.Name, task.Name)
+								L.Alert("required task %s is not exist. Stop task %s", req.Name, task.Name)
 								task.Cancel()
 							}
 						}
@@ -109,12 +109,12 @@ func (d *Dispatcher) Checking() (err error) {
 					}
 
 					if task.StLaunched != task.StMustStart { // if needs any actions
-						L.Info(d.Checking, "task %s need action; Must: %v; InProgress %v; Current: %v",
+						L.Info("task %s need action; Must: %v; InProgress %v; Current: %v",
 							task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
 						if task.StMustStart { // if must start
-							L.Info(d.Checking, "task %s; Try Up service", task.Name)
+							L.Info("task %s; Try Up service", task.Name)
 							if task.StInProgress {
-								L.Info(d.Checking, "task %s; Starting in progress", task.Name)
+								L.Info("task %s; Starting in progress", task.Name)
 								continue
 							}
 
@@ -124,25 +124,25 @@ func (d *Dispatcher) Checking() (err error) {
 									task.StInProgress = true
 									task.Ctx, task.Cancel = context.WithCancel(context.Background())
 									task.Locker.Unlock()
-									L.Info(d.Checking, "launch task %s", task.Name)
+									L.Info("launch task %s", task.Name)
 									go task.ServiceTemplate()
 								} else {
-									L.Info(d.Checking, "service in task %s is not available", task.Name)
+									L.Info("service in task %s is not available", task.Name)
 								}
 							}
 						}
 
 						if !task.StMustStart { // if must stop
-							L.Info(d.Checking, "task %s; Try Down service", task.Name)
+							L.Info("task %s; Try Down service", task.Name)
 							if task.StInProgress {
-								L.Info(d.Checking, "task %s; Stopping in progress", task.Name)
+								L.Info("task %s; Stopping in progress", task.Name)
 								continue
 							}
 							if task.StLaunched {
 								task.Locker.Lock()
 								task.StInProgress = true
 								task.Locker.Unlock()
-								L.Info(d.Checking, "down task %s", task.Name)
+								L.Info("down task %s", task.Name)
 								if task.StopFunc != nil {
 									task.StopFunc()
 								}
@@ -162,7 +162,7 @@ func (d *Dispatcher) Checking() (err error) {
 
 func (d *Dispatcher) AddTask(name Daemon, mustStart bool, service func(*Task) error, required []*Task, val ...interface{}) (t *Task) {
 	if _, ok := d.Tasks[name]; ok {
-		L.Alert(d.AddTask, "Task with current name is available")
+		L.Alert("Task with current name is available")
 		return
 	}
 	t = CreateTask(name, mustStart, service)
@@ -175,7 +175,7 @@ func (d *Dispatcher) AddTask(name Daemon, mustStart bool, service func(*Task) er
 }
 
 func (d *Dispatcher) RemoveTaskAndRequired(t *Task) (ok bool) {
-	L.Info(d.Checking, "task %s; try remove", t.Name)
+	L.Info("task %s; try remove", t.Name)
 
 	for _, task := range d.Tasks {
 		for _, req := range task.Required {
@@ -192,7 +192,7 @@ func (d *Dispatcher) RemoveTaskAndRequired(t *Task) (ok bool) {
 			d.Locker.Lock()
 			delete(d.Tasks, t.Name)
 			d.Locker.Unlock()
-			L.Info(d.Checking, "task %s; deleted", t.Name)
+			L.Info("task %s; deleted", t.Name)
 			return true
 		} else if t.StMustStart == true {
 			t.Stop()
@@ -207,16 +207,16 @@ func (d *Dispatcher) StdIn() (err error) {
 		inpuText, _ := in.ReadString('\n')
 		switch inpuText {
 		case "exit\n":
-			L.Warning(d.StdIn, "got request for exit")
+			L.Warning("got request for exit")
 			for _, task := range d.Tasks {
 				//task.StMustStart = false
 				d.RemoveTaskAndRequired(task)
 			}
 			break
 		case "tasks\n":
-			L.Info(d.StdIn, "got request for tasks status")
+			L.Info("got request for tasks status")
 			for _, task := range d.Tasks {
-				L.Info(d.StdIn, "task %s - Must %v; InProgress %v; Launched %v ",
+				L.Info("task %s - Must %v; InProgress %v; Launched %v ",
 					task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
 			}
 			break

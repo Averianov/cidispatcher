@@ -29,7 +29,7 @@ func CreateTask(name Daemon, must bool, service func(*Task) error) (t *Task) {
 		StInProgress: false,
 		StLaunched:   false,
 	}
-	L.Info(CreateTask, "CreateTask '%s'", t.Name)
+	L.Info("CreateTask '%s'", t.Name)
 	return
 }
 
@@ -47,15 +47,15 @@ func (task *Task) ServiceTemplate() {
 
 	//task.Error <- task.Service(task.Ctx, task.Val)
 	err = task.Service(task)
-	//L.Info(task.Start, "end in %s with err %v", task.Name, err)
+	//L.Info("end in %s with err %v", task.Name, err)
 }
 
 func (task *Task) Start() {
 	if task.StMustStart == true {
 		if task.StLaunched == true {
-			L.Info(task.Start, "service %s already runned", task.Name)
+			L.Info("service %s already runned", task.Name)
 		} else {
-			L.Info(task.Start, "starting service %s in progress...", task.Name)
+			L.Info("starting service %s in progress...", task.Name)
 		}
 		return
 	}
@@ -64,7 +64,7 @@ func (task *Task) Start() {
 	task.StMustStart = true
 	task.Locker.Unlock()
 
-	L.Info(task.Start, "start task %s", task.Name)
+	L.Info("start task %s", task.Name)
 }
 
 func (task *Task) Started() {
@@ -72,15 +72,15 @@ func (task *Task) Started() {
 	task.StInProgress = false
 	task.StLaunched = true
 	task.Locker.Unlock()
-	L.Info(task.Started, "task %s started", task.Name)
+	L.Info("task %s started", task.Name)
 }
 
 func (task *Task) Stop() {
 	if task.StMustStart == false {
 		if task.StLaunched == false {
-			L.Info(task.Stop, "service %s already stopped", task.Name)
+			L.Info("service %s already stopped", task.Name)
 		} else {
-			L.Info(task.Stop, "stopping service %s in progress...", task.Name)
+			L.Info("stopping service %s in progress...", task.Name)
 		}
 		return
 	}
@@ -89,7 +89,7 @@ func (task *Task) Stop() {
 	task.StMustStart = false
 	task.Locker.Unlock()
 
-	L.Info(task.Stop, "stop task %s", task.Name)
+	L.Info("stop task %s", task.Name)
 	return
 }
 
@@ -98,5 +98,5 @@ func (task *Task) Stopped() {
 	task.StInProgress = false
 	task.StLaunched = false
 	task.Locker.Unlock()
-	L.Info(task.Stopped, "task %s stopped", task.Name)
+	L.Info("task %s stopped", task.Name)
 }

@@ -24,7 +24,7 @@ func TestDispatcher(t *testing.T) {
 		time.Sleep(time.Second * 6)
 		tsk2.Stop()
 		time.Sleep(time.Second * 6)
-		d.RemoveTask(tsk2)
+		d.RemoveTaskAndRequired(tsk2)
 		//tsk = D.Tasks["exampleService1"]
 		time.Sleep(time.Second * 10)
 		log.Fatal("FATAL") // for look process
