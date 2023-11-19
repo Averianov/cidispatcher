@@ -174,6 +174,32 @@ func (d *Dispatcher) AddTask(name Daemon, mustStart bool, service func(*Task) er
 	return
 }
 
+func (d *Dispatcher) RemoveTask(t *Task) (ok bool) {
+	L.Info("task %s; try remove", t.Name)
+
+	for _, task := range d.Tasks {
+		for _, req := range task.Required {
+			if t == req {
+				L.Warning("cannot remove task %s. It have depends", t.Name)
+				return false
+			}
+		}
+	}
+
+	for {
+		if t.StLaunched == false {
+			d.Locker.Lock()
+			delete(d.Tasks, t.Name)
+			d.Locker.Unlock()
+			L.Info("task %s; deleted", t.Name)
+			return true
+		} else if t.StMustStart == true {
+			t.Stop()
+		}
+		time.Sleep(time.Second)
+	}
+}
+
 func (d *Dispatcher) RemoveTaskAndRequired(t *Task) (ok bool) {
 	L.Info("task %s; try remove", t.Name)
 
