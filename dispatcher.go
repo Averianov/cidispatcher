@@ -240,10 +240,26 @@ func (d *Dispatcher) StdIn() (err error) {
 			}
 			break
 		case "tasks\n":
-			L.Info("got request for tasks status")
+			L.Info(d.StdIn, "got request for tasks status")
 			for _, task := range d.Tasks {
-				L.Info("task %s - Must %v; InProgress %v; Launched %v ",
-					task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
+				var status string
+				if task.StLaunched {
+					if task.StMustStart != task.StLaunched {
+						status = "Must Stopped"
+					} else {
+						status = "Launched"
+					}
+				} else {
+					if task.StMustStart != task.StLaunched {
+						status = "Must launched"
+					} else {
+						status = "Stopped"
+					}
+				}
+				if task.StInProgress {
+					status = status + "; In progress..."
+				}
+				L.Info(d.StdIn, "task %s - %s ", task.Name, status)
 			}
 			break
 		}
