@@ -235,12 +235,12 @@ func (d *Dispatcher) StdIn() (err error) {
 		case "exit\n":
 			L.Warning("got request for exit")
 			for _, task := range d.Tasks {
-				//task.StMustStart = false
-				d.RemoveTaskAndRequired(task)
+				task.Stop()
+				//d.RemoveTaskAndRequired(task)
 			}
 			break
 		case "tasks\n":
-			L.Info(d.StdIn, "got request for tasks status")
+			L.Info("got request for tasks status")
 			for _, task := range d.Tasks {
 				var status string
 				if task.StLaunched {
@@ -259,7 +259,7 @@ func (d *Dispatcher) StdIn() (err error) {
 				if task.StInProgress {
 					status = status + "; In progress..."
 				}
-				L.Info(d.StdIn, "task %s - %s ", task.Name, status)
+				L.Info("task %s - %s ", task.Name, status)
 			}
 			break
 		}
