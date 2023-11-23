@@ -32,7 +32,8 @@ type Dispatcher struct {
 // or mother project can present pointer to the cisystemlog
 func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 	if l == nil {
-		L = sl.CreateLogs(4, 5)
+		L = sl.CreateLogs(4, 5) // debug level; 5Mb in log file
+		L.RemoveLogFile(3)
 	} else {
 		L = l
 	}
@@ -40,9 +41,12 @@ func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 	d = &Dispatcher{
 		Tasks: map[Daemon]*Task{},
 	}
-	d.CheckDureation = time.Second * cd
+	if cd == 0 {
+		cd = CHECK_DURATION
+	} else {
+		d.CheckDureation = time.Second * cd
+	}
 	D = d
-
 	L.Info("CreateDispatcher")
 	return
 }
