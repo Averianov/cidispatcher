@@ -1,6 +1,6 @@
 # CI Dispatcher
 
-CI_Dispatcher is tasks dispatcher for monolite projects.
+CI_Dispatcher is tasks dispatcher for monolithic projects.
 
 Goal - to ensure that in a monolithic project all processes are managed so that no goroutine loses control or gets stuck in a process.
 
