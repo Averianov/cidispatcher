@@ -143,7 +143,7 @@ func (d *Dispatcher) Checking() (err error) {
 							for _, t := range d.Tasks {
 								for _, rt := range t.Required {
 									if rt.Name == task.Name {
-										L.Info("stop child task %s who required stopping task %s", rt.Name, task.Name)
+										L.Info("stop child task %s who required main task %s", rt.Name, task.Name)
 										t.Stop()
 									}
 								}
