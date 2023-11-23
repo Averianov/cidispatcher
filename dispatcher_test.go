@@ -14,9 +14,9 @@ func TestDispatcher(t *testing.T) {
 	}()
 
 	d := CreateDispatcher(nil, 2) // every 2 seconds dispatcher do checking tasks
-	tsk1 := d.AddTask("exampleService1", false, exampleService, []*Task{}, "exampleService1")
-	tsk2 := d.AddTask("exampleService2", false, exampleService, []*Task{tsk1}, "exampleService2")
-	d.AddTask("exampleService3", true, exampleService, []*Task{tsk2}, "exampleService3")
+	tsk1 := d.AddTask("exampleService1", false, exampleService, []*Task{})
+	tsk2 := d.AddTask("exampleService2", false, exampleService, []*Task{tsk1})
+	d.AddTask("exampleService3", true, exampleService, []*Task{tsk2})
 
 	go func() { // we can manage tasks from any process who take access to dispatcher
 		time.Sleep(time.Second * 6)
@@ -36,7 +36,7 @@ func TestDispatcher(t *testing.T) {
 // exampleService is wrapper. It is example how make task_function \n
 // template: func(t *Task) error
 func exampleService(t *Task) (err error) {
-	var name string = fmt.Sprintf("%v", t.Val[0])
+
 	i := 30
 
 	t.Started() // WARNING! Task must be checked as Started from this function (after preparing and befor started)
@@ -51,7 +51,7 @@ func exampleService(t *Task) (err error) {
 				//fmt.Printf("division by zero %v \n", (1 / i)) // when do panic
 				return
 			}
-			fmt.Printf("test %s - %v\n", name, i)
+			fmt.Printf("test %s - %v\n", t.Name, i)
 			time.Sleep(time.Second)
 		}
 	}
