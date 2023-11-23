@@ -292,7 +292,7 @@ func StdIn(t *Task) (err error) {
 		case "exit\n":
 			L.Warning("got request for exit")
 			D.Stop()
-			break
+			return
 		case "tasks\n":
 			L.Info("got request for tasks status")
 			for _, task := range D.Tasks {
