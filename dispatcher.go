@@ -17,17 +17,19 @@ var D *Dispatcher
 type Daemon string
 
 const (
-	CHECK_DURATION time.Duration = 3
+	CHECK_DURATION time.Duration = 3 // in seconds
+	STDIN_TASK     string        = "StdInTask"
 )
 
 type Dispatcher struct {
 	Locker         sync.Mutex
 	CheckDureation time.Duration
 	Tasks          map[Daemon]*Task
-	//Variables      map[Daemon]chan interface{}
 }
 
-// CreateDispatcher make dispatcher object where cd is duration for check tasks in seconds
+// CreateDispatcher make dispatcher object where cd is duration for check tasks in seconds.
+// If mother project not use cisystemlog, then dispatcher create self this log
+// or mother project can present pointer to the cisystemlog
 func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 	if l == nil {
 		L = sl.CreateLogs(4, 5)
@@ -45,6 +47,8 @@ func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 	return
 }
 
+// Checking execute checking tasks.
+// main process
 func (d *Dispatcher) Checking() (err error) {
 	defer func() {
 		if err == nil {
@@ -52,7 +56,9 @@ func (d *Dispatcher) Checking() (err error) {
 		}
 	}()
 	L.Info("start Dispatcher")
-	go d.StdIn()
+
+	//go d.StdIn()
+	d.AddTask("STDIN_TASK", true, StdIn, []*Task{})
 
 	var mustExit, timeToCheck, readyToStart bool = true, true, true
 	tick := time.NewTicker(d.CheckDureation)
@@ -160,6 +166,8 @@ func (d *Dispatcher) Checking() (err error) {
 	}
 }
 
+// AddTask make new task and add it to dispatcher map.
+// required: name, start status, task function and required tasks
 func (d *Dispatcher) AddTask(name Daemon, mustStart bool, service func(*Task) error, required []*Task, val ...interface{}) (t *Task) {
 	if _, ok := d.Tasks[name]; ok {
 		L.Alert("Task with current name is available")
@@ -174,6 +182,7 @@ func (d *Dispatcher) AddTask(name Daemon, mustStart bool, service func(*Task) er
 	return
 }
 
+// RemoveTask removed single task if it free from dependecies
 func (d *Dispatcher) RemoveTask(t *Task) (ok bool) {
 	L.Info("task %s; try remove", t.Name)
 
@@ -200,6 +209,7 @@ func (d *Dispatcher) RemoveTask(t *Task) (ok bool) {
 	}
 }
 
+// RemoveTaskAndRequired removed current task and other tasks who required this task
 func (d *Dispatcher) RemoveTaskAndRequired(t *Task) (ok bool) {
 	L.Info("task %s; try remove", t.Name)
 
@@ -227,21 +237,34 @@ func (d *Dispatcher) RemoveTaskAndRequired(t *Task) (ok bool) {
 	}
 }
 
-func (d *Dispatcher) StdIn() (err error) {
+// Stop execute gracefull shutdown application.
+// Stopped all tasks
+func (d *Dispatcher) Stop() {
+	for _, task := range d.Tasks {
+		task.Stop()
+	}
+	return
+}
+
+// StdIn is default task who listen cmd input and execute user command.
+// More command will be added
+func StdIn(t *Task) (err error) {
+	if D == nil {
+		err = fmt.Errorf("Dispatcher is not available")
+		return
+	}
+
 	for {
 		in := bufio.NewReader(os.Stdin)
 		inpuText, _ := in.ReadString('\n')
 		switch inpuText {
 		case "exit\n":
 			L.Warning("got request for exit")
-			for _, task := range d.Tasks {
-				task.Stop()
-				//d.RemoveTaskAndRequired(task)
-			}
+			D.Stop()
 			break
 		case "tasks\n":
 			L.Info("got request for tasks status")
-			for _, task := range d.Tasks {
+			for _, task := range D.Tasks {
 				var status string
 				if task.StLaunched {
 					if task.StMustStart != task.StLaunched {

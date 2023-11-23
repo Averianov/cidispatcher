@@ -10,16 +10,17 @@ type Task struct {
 	Name         Daemon
 	Ctx          context.Context
 	Cancel       context.CancelFunc
-	StopFunc     func()
-	Service      func(*Task) error
-	Error        chan error // if crash service			-> try return to status true
-	StMustStart  bool       // for check differents status
-	StInProgress bool       // for check when daemon starting
-	StLaunched   bool       // for check differents status
+	StopFunc     func()            // user stop function. used when context not available in task
+	Service      func(*Task) error // task function
+	Error        chan error        // if crash service			-> try return to status true
+	StMustStart  bool              // for check differents status
+	StInProgress bool              // for check when daemon starting
+	StLaunched   bool              // for check differents status
 	Required     []*Task
 	Val          []interface{}
 }
 
+// CreateTask retun new task
 func CreateTask(name Daemon, must bool, service func(*Task) error) (t *Task) {
 	t = &Task{
 		Name:         name,
@@ -28,10 +29,12 @@ func CreateTask(name Daemon, must bool, service func(*Task) error) (t *Task) {
 		StInProgress: false,
 		StLaunched:   false,
 	}
-	L.Info("CreateTask '%s'", t.Name)
+	L.Debug("created Task '%s'", name)
 	return
 }
 
+// ServiceTemplate is wrapper to task function.\n
+// Execut start task function and mark task when they stopped.
 func (task *Task) ServiceTemplate() {
 	var err error
 	defer func() {
@@ -44,10 +47,7 @@ func (task *Task) ServiceTemplate() {
 		L.Warning("defer in %s with err: %v", task.Name, err)
 		task.Stopped()
 	}()
-
-	//task.Error <- task.Service(task.Ctx, task.Val)
 	err = task.Service(task)
-	//L.Info("end in %s with err %v", task.Name, err)
 }
 
 func (task *Task) Start() {
@@ -67,6 +67,8 @@ func (task *Task) Start() {
 	L.Info("start task %s", task.Name)
 }
 
+// Started mark task as started.\n
+// Used from task function! User check when it must doing.
 func (task *Task) Started() {
 	task.Locker.Lock()
 	task.StInProgress = false
@@ -75,6 +77,7 @@ func (task *Task) Started() {
 	L.Info("task %s started", task.Name)
 }
 
+// Stop mark task to start stopping proccess
 func (task *Task) Stop() {
 	if task.StMustStart == false {
 		if task.StLaunched == false {
@@ -93,6 +96,7 @@ func (task *Task) Stop() {
 	return
 }
 
+// Stopped mark task as stopped
 func (task *Task) Stopped() {
 	task.Locker.Lock()
 	task.StInProgress = false
