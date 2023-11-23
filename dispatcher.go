@@ -168,22 +168,31 @@ func (d *Dispatcher) Checking() (err error) {
 
 // AddTask make new task and add it to dispatcher map.
 // required: name, start status, task function and required tasks
-func (d *Dispatcher) AddTask(name Daemon, mustStart bool, service func(*Task) error, required []*Task, val ...interface{}) (t *Task) {
-	if _, ok := d.Tasks[name]; ok {
-		L.Alert("Task with current name is available")
+func (d *Dispatcher) AddTask(name Daemon, mustStart bool, service func(*Task) error, required []*Task) (t *Task) {
+	var ok bool
+	if t, ok = d.Tasks[name]; ok {
+		L.Warning("Task with current name is available")
+		t.Locker.Lock()
+		t.Service = service
+		t.StMustStart = mustStart
+		t.Required = required
+		t.Locker.Unlock()
 		return
+	} else {
+		t = CreateTask(name, mustStart, service)
+		t.Required = required
+		d.Locker.Lock()
+		d.Tasks[t.Name] = t
+		d.Locker.Unlock()
 	}
-	t = CreateTask(name, mustStart, service)
-	t.Val = val
-	t.Required = required
-	d.Locker.Lock()
-	d.Tasks[t.Name] = t
-	d.Locker.Unlock()
 	return
 }
 
 // RemoveTask removed single task if it free from dependecies
 func (d *Dispatcher) RemoveTask(t *Task) (ok bool) {
+	if t == nil {
+		return false
+	}
 	L.Info("task %s; try remove", t.Name)
 
 	for _, task := range d.Tasks {
@@ -211,6 +220,9 @@ func (d *Dispatcher) RemoveTask(t *Task) (ok bool) {
 
 // RemoveTaskAndRequired removed current task and other tasks who required this task
 func (d *Dispatcher) RemoveTaskAndRequired(t *Task) (ok bool) {
+	if t == nil {
+		return false
+	}
 	L.Info("task %s; try remove", t.Name)
 
 	for _, task := range d.Tasks {

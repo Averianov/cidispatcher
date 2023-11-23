@@ -12,12 +12,10 @@ type Task struct {
 	Cancel       context.CancelFunc
 	StopFunc     func()            // user stop function. used when context not available in task
 	Service      func(*Task) error // task function
-	Error        chan error        // if crash service			-> try return to status true
 	StMustStart  bool              // for check differents status
 	StInProgress bool              // for check when daemon starting
 	StLaunched   bool              // for check differents status
 	Required     []*Task
-	Val          []interface{}
 }
 
 // CreateTask retun new task
