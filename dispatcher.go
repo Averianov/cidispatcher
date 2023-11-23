@@ -140,6 +140,15 @@ func (d *Dispatcher) Checking() (err error) {
 
 						if !task.StMustStart { // if must stop
 							L.Info("task %s; Try Down service", task.Name)
+							for _, t := range d.Tasks {
+								for _, rt := range t.Required {
+									if rt.Name == task.Name {
+										L.Info("stop child task %s who required stopping task %s", rt.Name, task.Name)
+										t.Stop()
+									}
+								}
+							}
+
 							if task.StInProgress {
 								L.Info("task %s; Stopping in progress", task.Name)
 								continue
