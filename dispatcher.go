@@ -253,7 +253,7 @@ func StdIn(t *Task) (err error) {
 		err = fmt.Errorf("Dispatcher is not available")
 		return
 	}
-
+	t.Started()
 	for {
 		in := bufio.NewReader(os.Stdin)
 		inpuText, _ := in.ReadString('\n')
