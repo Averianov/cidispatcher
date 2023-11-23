@@ -169,9 +169,15 @@ func (d *Dispatcher) Checking() (err error) {
 // AddTask make new task and add it to dispatcher map.
 // required: name, start status, task function and required tasks
 func (d *Dispatcher) AddTask(name Daemon, mustStart bool, service func(*Task) error, required []*Task) (t *Task) {
+	for _, rt := range required {
+		if _, ok := d.Tasks[rt.Name]; !ok {
+			L.Warning("required task is not available")
+			return
+		}
+	}
 	var ok bool
 	if t, ok = d.Tasks[name]; ok {
-		L.Warning("Task with current name is available")
+		L.Warning("task %s is available", name)
 		t.Locker.Lock()
 		t.Service = service
 		t.StMustStart = mustStart
