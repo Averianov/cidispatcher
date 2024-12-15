@@ -49,8 +49,8 @@ func (task *Task) ServiceTemplate() {
 }
 
 func (task *Task) Start() {
-	if task.StMustStart == true {
-		if task.StLaunched == true {
+	if task.StMustStart {
+		if task.StLaunched {
 			L.Info("service %s already runned", task.Name)
 		} else {
 			L.Info("starting service %s in progress...", task.Name)
@@ -77,8 +77,8 @@ func (task *Task) Started() {
 
 // Stop mark task to start stopping proccess
 func (task *Task) Stop() {
-	if task.StMustStart == false {
-		if task.StLaunched == false {
+	if task.StMustStart {
+		if task.StLaunched {
 			L.Info("service %s already stopped", task.Name)
 		} else {
 			L.Info("stopping service %s in progress...", task.Name)
@@ -91,7 +91,6 @@ func (task *Task) Stop() {
 	task.Locker.Unlock()
 
 	L.Info("stop task %s", task.Name)
-	return
 }
 
 // Stopped mark task as stopped

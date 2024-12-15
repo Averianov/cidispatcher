@@ -70,7 +70,6 @@ func (d *Dispatcher) Checking() (err error) {
 		select {
 		case <-tick.C:
 			timeToCheck = true
-			break
 
 		default:
 			if timeToCheck {
@@ -224,13 +223,13 @@ func (d *Dispatcher) RemoveTask(t *Task) (ok bool) {
 	}
 
 	for {
-		if t.StLaunched == false {
+		if !t.StLaunched {
 			d.Locker.Lock()
 			delete(d.Tasks, t.Name)
 			d.Locker.Unlock()
 			L.Info("task %s; deleted", t.Name)
 			return true
-		} else if t.StMustStart == true {
+		} else if t.StMustStart {
 			t.Stop()
 		}
 		time.Sleep(time.Second)
@@ -255,13 +254,13 @@ func (d *Dispatcher) RemoveTaskAndRequired(t *Task) (ok bool) {
 	}
 
 	for {
-		if t.StLaunched == false {
+		if !t.StLaunched {
 			d.Locker.Lock()
 			delete(d.Tasks, t.Name)
 			d.Locker.Unlock()
 			L.Info("task %s; deleted", t.Name)
 			return true
-		} else if t.StMustStart == true {
+		} else if t.StMustStart {
 			t.Stop()
 		}
 		time.Sleep(time.Second)
@@ -274,7 +273,6 @@ func (d *Dispatcher) Stop() {
 	for _, task := range d.Tasks {
 		task.Stop()
 	}
-	return
 }
 
 // StdIn is default task who listen cmd input and execute user command.
@@ -315,7 +313,6 @@ func StdIn(t *Task) (err error) {
 				}
 				L.Info("task %s - %s ", task.Name, status)
 			}
-			break
 		}
 	}
 }
