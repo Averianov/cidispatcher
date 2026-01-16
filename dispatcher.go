@@ -33,7 +33,6 @@ type Dispatcher struct {
 func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 	if l == nil {
 		L = sl.CreateLogs(4, 5) // debug level; 5Mb in log file
-		L.RemoveLogFile(3)
 	} else {
 		L = l
 	}
