@@ -1,4 +1,4 @@
-module cidispatcher
+module github.com/Averianov/cidispatcher
 
 go 1.21.1
 

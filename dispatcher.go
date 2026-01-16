@@ -37,17 +37,16 @@ func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
 		L = l
 	}
 
-	d = &Dispatcher{
+	D = &Dispatcher{
 		Tasks: map[Daemon]*Task{},
 	}
 	if cd == 0 {
 		cd = CHECK_DURATION
 	} else {
-		d.CheckDureation = time.Second * cd
+		D.CheckDureation = time.Second * cd
 	}
-	D = d
 	L.Info("CreateDispatcher")
-	return
+	return D
 }
 
 // Checking execute checking tasks.
