@@ -1,0 +1,9 @@
+go.sum
+.gitignore
+/build/executable/
+/build/memfd/
+/log/
+*.zip
+*.sh
+*.log
+port

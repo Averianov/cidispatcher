@@ -1,0 +1,15 @@
+2026.02.05_17:43:57			[96mINFO[0m [worker1] Service started at 39499
+2026.02.05_17:43:57 [90m[47mwrapper.go:65[0m	[37mDEBG[0m [worker1] connect to Redis on: 39499
+2026.02.05_17:43:57 [90m[47mwrapper.go:163[0m	[37mDEBG[0m [worker1] Send to Master launched worker1, try count: 3
+2026.02.05_17:43:57 [90m[47mwrapper.go:153[0m	[37mDEBG[0m [worker1] Send to service master: launched worker1
+2026.02.05_17:43:57 [90m[47mwrapper.go:153[0m	[37mDEBG[0m [worker1] Send to service logger: worker1:msg-0
+2026.02.05_17:43:58 [90m[47mwrapper.go:153[0m	[37mDEBG[0m [worker1] Send to service logger: worker1:msg-1
+2026.02.05_17:43:59 [90m[47mwrapper.go:153[0m	[37mDEBG[0m [worker1] Send to service logger: worker1:msg-2
+2026.02.05_17:44:00 [90m[47mwrapper.go:153[0m	[37mDEBG[0m [worker1] Send to service logger: worker1:msg-3
+2026.02.05_17:44:01 [90m[47mwrapper.go:153[0m	[37mDEBG[0m [worker1] Send to service logger: worker1:msg-4
+2026.02.05_17:44:02 [90m[47mwrapper.go:153[0m	[37mDEBG[0m [worker1] Send to service logger: worker1:msg-5
+2026.02.05_17:44:03 [90m[47mwrapper.go:153[0m	[37mDEBG[0m [worker1] Send to service logger: worker1:msg-6
+2026.02.05_17:44:04 [90m[47mwrapper.go:153[0m	[37mDEBG[0m [worker1] Send to service logger: worker1:msg-7
+2026.02.05_17:44:05 [90m[47mwrapper.go:153[0m	[37mDEBG[0m [worker1] Send to service logger: worker1:msg-8
+2026.02.05_17:44:06 [90m[47mwrapper.go:153[0m	[37mDEBG[0m [worker1] Send to service logger: worker1:msg-9
+2026.02.05_17:44:07 [90m[47mwrapper.go:135[0m	[37mDEBG[0m [worker1] Got: [get status]
