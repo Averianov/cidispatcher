@@ -17,36 +17,41 @@ help:
 	@echo ''
 	@echo 'Available targets are:'
 	@echo ''
-	@echo '    build                    Preparing www content && Build executable file.'
-	@echo '    runwrap                      Start test wrapper.'	
-	@echo '    runtest                      Start project without compile.'	
-	@echo '    runplace                      Start project without compile.'	
-	@echo '    runtime                      Start project without compile.'	
-	@echo '    test				        Run integration tests.'
+	@echo '    clean                    Clear ./build/executable/ directory.'
+	@echo '    workers                  Build executable workers to ./build/executable/ directory.'
+	@echo '    prepare                  Preparing executable files to Go in memory.'
+	@echo '    run                      Start test project without compile.'
 	@echo ''
 	@echo 'Targets run by default are: fmt deps vet lint build test-unit.'
 	@echo ''
 
+.PHONY: all workers clean $(WORKERS)
 
-build: 
-	#g++ -std=c++11 -shared -fPIC -o ./cmd/cgo/libthread_wrapper.so ./cmd/cgo/thread_wrapper.cpp -lpthread
-	#go get -u ./...
+all: workers prepare run
+### rebuild workers #############################################
+
+RAW_DIR := ./build/raw
+EXE_DIR := ./build/executable
+
+SOURCES := $(wildcard $(RAW_DIR)/*/main.go)
+WORKERS := $(patsubst $(RAW_DIR)/%/main.go, %, $(SOURCES))
+
+workers: clean $(WORKERS)
+
+$(WORKERS): %:
+	@mkdir -p $(EXE_DIR)
+	go build -o $(EXE_DIR)/$* $(RAW_DIR)/$*/main.go
+
+clean:
+	rm -rf $(EXE_DIR)
+	go clean -cache
+
+##################################################################
+prepare:
+	go get github.com/Averianov/ftgc
+	echo 'package main; import ftgc "github.com/Averianov/ftgc"; func main() {ftgc.ConvertDirectory("./build/executable", "./build/memfd", "")}' > temp.go && go run temp.go && rm temp.go
+
+run: 
 	go mod tidy
-	#go build -o ./testdispatcher ./cmd
-	CGO_ENABLED=1 CGO_LDFLAGS="-L. -lthread_wrapper" go build -o wrapper ./cmd/cgo/main.go
-
-run:
-	#LD_LIBRARY_PATH=./cmd/cgo/
-	CGO_ENABLED=1 go run ./cmd/cgo/main.go
-
-runtest:
-	go run cmd/test/main.go
-
-runplace:
-	go build -gcflags=-S cmd/simple/main.go
-
-runtime:
-	GOTRACEBACK=system go run cmd/simple/main.go
-
-test:
-	$(GOTEST) ./...
+	go clean -cache
+	go run ./cmd/main.go

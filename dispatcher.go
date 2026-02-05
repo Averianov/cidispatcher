@@ -1,315 +1,292 @@
+//go:build linux
+
 package dispatcher
 
 import (
-	"bufio"
-	"context"
 	"fmt"
 	"os"
-	"sync"
+	"strings"
 	"time"
 
+	_ "github.com/Averianov/cidispatcher/build/memfd" // for upload Payloads
+	"github.com/Averianov/cidispatcher/wrapper"
 	sl "github.com/Averianov/cisystemlog"
+	ftgc "github.com/Averianov/ftgc"
+	"github.com/alicebob/miniredis/v2"
 )
-
-var L *sl.Logs
-var D *Dispatcher
-
-type Daemon string
 
 const (
-	CHECK_DURATION time.Duration = 3 // in seconds
-	STDIN_TASK     string        = "StdInTask"
+	DEFAULT_CHECK_DURATION time.Duration = 10 // seconds
 )
 
-type Dispatcher struct {
-	Locker         sync.Mutex
-	CheckDureation time.Duration
-	Tasks          map[Daemon]*Task
+var (
+	D *Dispatcher
+	ProcessConfigs 		map[string]ProcessConfig = make(map[string]ProcessConfig)
+)
+
+type ProcessConfig struct {
+	Name         string   `json:"name"`
+	MustStart    bool     `json:"must_start"`
+	Required     []string `json:"required"`
 }
 
-// CreateDispatcher make dispatcher object where cd is duration for check tasks in seconds.
-// If mother project not use cisystemlog, then dispatcher create self this log
-// or mother project can present pointer to the cisystemlog
-func CreateDispatcher(l *sl.Logs, cd time.Duration) (d *Dispatcher) {
-	if l == nil {
-		L = sl.CreateLogs(4, 5) // debug level; 5Mb in log file
+type Dispatcher struct {
+	CheckDureation time.Duration
+	Wpr            *wrapper.Wrapper
+	Tasks          map[string]*Task
+}
+
+func CreateDispatcher(cd time.Duration) (d *Dispatcher) {
+	var err error
+
+	if cd == 0 {
+		cd = time.Second * DEFAULT_CHECK_DURATION
 	} else {
-		L = l
+		cd = time.Second * cd
 	}
 
-	D = &Dispatcher{
-		Tasks: map[Daemon]*Task{},
+	D = new(Dispatcher)
+	D.CheckDureation = cd
+	D.Tasks = map[string]*Task{}
+
+	var mr *miniredis.Miniredis
+	mr, err = miniredis.Run()
+	if err != nil {
+		panic(fmt.Sprintf("[master] %s", err.Error()))
 	}
-	if cd == 0 {
-		cd = CHECK_DURATION
-	} else {
-		D.CheckDureation = time.Second * cd
+
+	var f *os.File
+	f, err = os.OpenFile(wrapper.PORT_FILE_PATH, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		panic(fmt.Sprintf("[master] %s", err.Error()))
 	}
-	L.Info("CreateDispatcher")
+	f.WriteString(mr.Port())
+	f.Close()
+
+	sl.L.Info("[master] Radis server up on %s", mr.Port())
+
+	D.Wpr, err = wrapper.CreateWrapper(wrapper.MASTER)
+	if err != nil {
+		panic(fmt.Sprintf("[master] %s", err.Error()))
+	}
+
+	// upload Payload Data
+	// sl.L.Debug("[master] ToGo: %v\n", ftgc.ToGo) // static map with byte data from FileToGoConverter
+	for _, pr := range ProcessConfigs {
+		if raw, ok := ftgc.ToGo[strings.ToUpper(pr.Name)]; ok { // name in map FileToGoConverter in uppercase; name in uppercase
+			sl.L.Info("[master] add task %s", pr.Name)
+			D.Tasks[pr.Name] = &Task{
+				Name:         pr.Name,
+				ElfPayload:   raw,
+				StMustStart:  pr.MustStart,
+				Required:     pr.Required,
+				Wpr: D.Wpr,
+			}
+		} else {
+			panic(fmt.Sprintf("[master] not found %s raw data\n", pr.Name))
+		}
+	}
 	return D
 }
 
-// Checking execute checking tasks.
-// main process
-func (d *Dispatcher) Checking() (err error) {
+func (d *Dispatcher) Launch() {
+	defer D.Wpr.RegularStop()
+	defer os.Remove(wrapper.PORT_FILE_PATH)
+
+	go d.RadioKat()
+	d.StatusChecker()
+}
+
+func (d *Dispatcher) RadioKat() {
+	for {
+		_, value, err := d.Wpr.ReadGroup(1)
+		if err != nil {
+			sl.L.Warning(err.Error())
+			continue
+		}
+		sl.L.Debug("[master] GOT: %s", value)
+		raw := strings.Split(value, " ")
+		if len(raw) == 2 {
+			if task, ok := d.Tasks[raw[1]]; ok {
+				switch raw[0] {
+				case "launched":
+					task.Started()
+				case "stopped":
+					task.Stopped()
+				case "start":
+					task.Enable()
+				case "stop":
+					sl.L.Alert("[master] start recurcive stopping tasks from %s", task.Name)
+					d.RecurciveStop(task)
+				default:
+					//sl.L.Debug("[master] get %s", value)
+				}
+			}
+		}
+	}
+}
+
+func (d *Dispatcher) RecurciveStop(task *Task) {
+	task.Disable()
+	task.Stop()
+	for _, childrenTask := range D.Tasks { // potencial children task
+		for _, mainTaskName := range childrenTask.Required {
+			if task.Name == mainTaskName {
+				sl.L.Info("[master] task %s - looping stop children task %s", task.Name, childrenTask.Name)
+				d.RecurciveStop(childrenTask)
+			}
+		}
+	}
+}
+
+func (d *Dispatcher) RecurciveEnable(task *Task) {
+	task.Enable()
+	for _, mainTaskName := range task.Required {
+		if mainTask, ok := D.Tasks[mainTaskName]; ok && !mainTask.StMustStart {
+			sl.L.Info("[master] task %s - looping enable main task %s", task.Name, mainTask.Name)
+			d.RecurciveEnable(mainTask)
+		}
+	}
+}
+
+func (d *Dispatcher) ReadyToWork(task *Task) (ready bool) {
+	for _, rq := range task.Required { // check available main tasks
+		req := d.Tasks[rq]
+		if req.StMustStart && req.StLaunched  {
+			continue
+		}
+		return false
+	}
+	sl.L.Debug("[master] task %s - ready to work", task.Name)
+	return true
+}
+
+func (d *Dispatcher) StatusChecker() (err error) {
 	defer func() {
 		if err == nil {
-			err = fmt.Errorf("Dispatcher was down")
+			err = fmt.Errorf("[master] Dispatcher was down")
+			sl.L.Warning(err.Error())
 		}
 	}()
-	L.Info("start Dispatcher")
+	sl.L.Info("[master] start Dispatcher Checker")
 
-	//go d.StdIn()
-	d.AddTask("STDIN_TASK", true, StdIn, []*Task{})
-
-	var mustExit, timeToCheck, readyToStart bool = true, true, true
+	var timeToCheck bool = true
 	tick := time.NewTicker(d.CheckDureation)
 	for {
 		select {
+		// case <-d.Wpr.StopChan:
+		// 	sl.L.Alert("[master] Get Cooperative shutdown signal. Shutdown all tasks")
+		// 	for _, task := range d.Tasks {
+		// 		task.StMustStart = false
+		// 	}
 		case <-tick.C:
 			timeToCheck = true
 
 		default:
 			if timeToCheck {
+				//### Tasks status before changes ####################################
+				var msg string
+				for _, task := range d.Tasks {
+					msg = msg + fmt.Sprintf("				[master]  %s	(Must: %v;	InProgress %v;	Current: %v)\n",
+						task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
+				}
+				sl.L.Debug("[master] \n\n\n################################\n%s", msg)
+
 				//### check Gracefull shutdown application ##########
-				mustExit = true
+				readyToExit := true
 				for _, task := range d.Tasks {
 					if task.StMustStart || task.StMustStart != task.StLaunched { // if not ready to shutdown - disable marker
-						mustExit = false
+						sl.L.Debug("[master] some tasks still in work; daemon not ready to exit")
+						readyToExit = false
+						break
+					}
+
+					var prcs *os.Process
+					prcs, err = task.Check()				
+					if err == nil || (prcs != nil && err != nil) { // if process no started or process was frozen 
+						sl.L.Debug("[master] task %s - has launched process; daemon not ready to exit", task.Name)
+						readyToExit = false
 						break
 					}
 				}
-				if mustExit {
-					L.Warning("Gracefull shutdown application")
+
+				if readyToExit {
+					sl.L.Warning("[master] Gracefull shutdown application")
 					time.Sleep(time.Second * 3)
 					os.Exit(0)
 				}
 
 				//### check Tasks #####################################
 				for _, task := range d.Tasks {
-					readyToStart = true
-					for _, req := range task.Required {
-						if task.StLaunched { // if required task down or removed, then stop this task
-							existRequiredTask := false
-							for _, t := range d.Tasks {
-								if req.Name == t.Name {
-									existRequiredTask = true
-								}
-							}
-
-							if !existRequiredTask {
-								L.Alert("required task %s is not exist. Stop task %s", req.Name, task.Name)
-								task.Cancel()
-							}
+					switch true {
+					case task.StMustStart && task.StInProgress && task.StLaunched: // only check why still in progress
+						sl.L.Debug("[master] task %s - still in starting progress; try shutdown zombie process", task.Name)
+						err = task.Stop() // send reminders
+						if err != nil {
+							sl.L.Warning("[master] %s err: %s ", task.Name, err.Error())
 						}
-						if task.StMustStart {
-							if !req.StMustStart {
-								req.Start() // try start required services
-							}
-							if !req.StLaunched {
-								readyToStart = false
-								if task.StLaunched {
-									task.Cancel() // wait when started each required services
-								}
-							}
+					case task.StMustStart && task.StInProgress && !task.StLaunched: // when still not started
+						err = task.Stop() // send reminders
+						if err != nil {
+							sl.L.Warning("[master] %s err: %s ", task.Name, err.Error())
 						}
-					}
-
-					if task.StLaunched != task.StMustStart { // if needs any actions
-						L.Info("task %s need action; Must: %v; InProgress %v; Current: %v",
-							task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
-						if task.StMustStart { // if must start
-							L.Info("task %s; Try Up service", task.Name)
-							if task.StInProgress {
-								L.Info("task %s; Starting in progress", task.Name)
+					case task.StMustStart && !task.StInProgress && !task.StLaunched: // must started
+						if d.ReadyToWork(task){
+							if task.ElfPayload == nil {
+								sl.L.Alert("[master] task %s - service not available", task.Name)
+								d.RecurciveStop(task)
 								continue
 							}
-
-							if readyToStart {
-								if task.Service != nil {
-									task.Locker.Lock()
-									task.StInProgress = true
-									task.Ctx, task.Cancel = context.WithCancel(context.Background())
-									task.Locker.Unlock()
-									L.Info("launch task %s", task.Name)
-									go task.ServiceTemplate()
-								} else {
-									L.Info("service in task %s is not available", task.Name)
-								}
+							sl.L.Info("[master] task %s - launch", task.Name)
+							err = task.LaunchInMemory([]string{})
+							if err != nil {
+								sl.L.Warning("[master] %s err: %s ", task.Name, err.Error())
+							}
+						} else {
+							d.RecurciveEnable(task) // enabling all main tasks
+						}
+					case task.StMustStart && !task.StInProgress && task.StLaunched: // successfull launched
+						if !d.ReadyToWork(task) {
+							d.RecurciveEnable(task) // enabling all main tasks
+							task.Reminder = KILLING_ATTEMPT // kill process who work without main processes
+							err = task.Stop()
+							if err != nil {
+								sl.L.Warning("[master] %s err: %s ", task.Name, err.Error())
 							}
 						}
-
-						if !task.StMustStart { // if must stop
-							L.Info("task %s; Try Down service", task.Name)
-							for _, t := range d.Tasks {
-								for _, rt := range t.Required {
-									if rt.Name == task.Name {
-										L.Info("stop child task %s who required main task %s", rt.Name, task.Name)
-										t.Stop()
-									}
-								}
-							}
-
-							if task.StInProgress {
-								L.Info("task %s; Stopping in progress", task.Name)
-								continue
-							}
-							if task.StLaunched {
-								task.Locker.Lock()
-								task.StInProgress = true
-								task.Locker.Unlock()
-								L.Info("down task %s", task.Name)
-								if task.StopFunc != nil {
-									task.StopFunc()
-								}
-								task.Cancel()
-							}
+					case !task.StMustStart && !task.StInProgress && !task.StLaunched: // fully stopped
+						continue
+					case !task.StMustStart && !task.StInProgress && task.StLaunched: // must stopped
+						sl.L.Debug("[master] task %s - try shutdown worked process", task.Name)
+						err = task.Stop() // send reminders
+						if err != nil {
+							sl.L.Warning("[master] %s err: %s ", task.Name, err.Error())
 						}
-
+					case !task.StMustStart && task.StInProgress && task.StLaunched: // when still not stopped
+						sl.L.Debug("[master] task %s - still in stopping progress; try shutdown zombie process", task.Name)
+						err = task.Stop() // send reminders
+						if err != nil {
+							sl.L.Warning("[master] %s err: %s ", task.Name, err.Error())
+						}
+					case !task.StMustStart && task.StInProgress && !task.StLaunched: // only check why still in progress
+						err = task.Stop() // send reminders
+						if err != nil {
+							sl.L.Warning("[master] %s err: %s ", task.Name, err.Error())
+						}
 					}
 				}
+
+				//### Tasks status after changes ####################################
+				msg = ""
+				for _, task := range d.Tasks {
+					msg = msg + fmt.Sprintf("				[master]  %s	(Must: %v;	InProgress %v;	Current: %v)\n",
+						task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
+				}
+				sl.L.Debug("[master] \n%s\n################################\n\n\n", msg)
+
 				timeToCheck = false // for exclude many check trying
 			} else {
 				time.Sleep(time.Second)
-			}
-		}
-	}
-}
-
-// AddTask make new task and add it to dispatcher map.
-// required: name, start status, task function and required tasks
-func (d *Dispatcher) AddTask(name Daemon, mustStart bool, service func(*Task) error, required []*Task) (t *Task) {
-	for _, rt := range required {
-		if _, ok := d.Tasks[rt.Name]; !ok {
-			L.Warning("required task is not available")
-			return
-		}
-	}
-	var ok bool
-	if t, ok = d.Tasks[name]; ok {
-		L.Warning("task %s is available", name)
-		t.Locker.Lock()
-		t.Service = service
-		t.StMustStart = mustStart
-		t.Required = required
-		t.Locker.Unlock()
-		return
-	} else {
-		t = CreateTask(name, mustStart, service)
-		t.Required = required
-		d.Locker.Lock()
-		d.Tasks[t.Name] = t
-		d.Locker.Unlock()
-	}
-	return
-}
-
-// RemoveTask removed single task if it free from dependecies
-func (d *Dispatcher) RemoveTask(t *Task) (ok bool) {
-	if t == nil {
-		return false
-	}
-	L.Info("task %s; try remove", t.Name)
-
-	for _, task := range d.Tasks {
-		for _, req := range task.Required {
-			if t == req {
-				L.Warning("cannot remove task %s. It have depends", t.Name)
-				return false
-			}
-		}
-	}
-
-	for {
-		if !t.StLaunched {
-			d.Locker.Lock()
-			delete(d.Tasks, t.Name)
-			d.Locker.Unlock()
-			L.Info("task %s; deleted", t.Name)
-			return true
-		} else if t.StMustStart {
-			t.Stop()
-		}
-		time.Sleep(time.Second)
-	}
-}
-
-// RemoveTaskAndRequired removed current task and other tasks who required this task
-func (d *Dispatcher) RemoveTaskAndRequired(t *Task) (ok bool) {
-	if t == nil {
-		return false
-	}
-	L.Info("task %s; try remove", t.Name)
-
-	for _, task := range d.Tasks {
-		for _, req := range task.Required {
-			if t == req {
-				if !d.RemoveTaskAndRequired(task) {
-					return false
-				}
-			}
-		}
-	}
-
-	for {
-		if !t.StLaunched {
-			d.Locker.Lock()
-			delete(d.Tasks, t.Name)
-			d.Locker.Unlock()
-			L.Info("task %s; deleted", t.Name)
-			return true
-		} else if t.StMustStart {
-			t.Stop()
-		}
-		time.Sleep(time.Second)
-	}
-}
-
-// Stop execute gracefull shutdown application.
-// Stopped all tasks
-func (d *Dispatcher) Stop() {
-	for _, task := range d.Tasks {
-		task.Stop()
-	}
-}
-
-// StdIn is default task who listen cmd input and execute user command.
-// More command will be added
-func StdIn(t *Task) (err error) {
-	if D == nil {
-		err = fmt.Errorf("Dispatcher is not available")
-		return
-	}
-	t.Started()
-	for {
-		in := bufio.NewReader(os.Stdin)
-		inpuText, _ := in.ReadString('\n')
-		switch inpuText {
-		case "exit\n":
-			L.Warning("got request for exit")
-			D.Stop()
-			return
-		case "tasks\n":
-			L.Info("got request for tasks status")
-			for _, task := range D.Tasks {
-				var status string
-				if task.StLaunched {
-					if task.StMustStart != task.StLaunched {
-						status = "Must Stopped"
-					} else {
-						status = "Launched"
-					}
-				} else {
-					if task.StMustStart != task.StLaunched {
-						status = "Must launched"
-					} else {
-						status = "Stopped"
-					}
-				}
-				if task.StInProgress {
-					status = status + "; In progress..."
-				}
-				L.Info("task %s - %s ", task.Name, status)
 			}
 		}
 	}
