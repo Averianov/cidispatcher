@@ -10,7 +10,7 @@ const (
 )
 
 func main() {
-	wpr, err := wrapper.CreateWrapper(Name, 4, 1)
+	wpr, err := wrapper.CreateWrapper(Name, -1, -1)
 	if err != nil {
 		panic(err.Error())
 	}

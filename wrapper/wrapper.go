@@ -57,7 +57,7 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 	}
 
 	if sizeLogFile < 0 {
-		val, ok := os.LookupEnv(LOG_LEVEL)
+		val, ok := os.LookupEnv(SIZE_LOG_FILE)
 		if !ok {
 			sizeLogFile = 0
 		} else {

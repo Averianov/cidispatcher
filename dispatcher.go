@@ -10,6 +10,7 @@ import (
 
 	"github.com/Averianov/cidispatcher/wrapper"
 	sl "github.com/Averianov/cisystemlog"
+	"github.com/Averianov/ciutils"
 	ftgc "github.com/Averianov/ftgc"
 	"github.com/alicebob/miniredis/v2"
 )
@@ -36,7 +37,7 @@ type Dispatcher struct {
 	Tasks          map[string]*Task
 }
 
-func CreateDispatcher(cd time.Duration) (d *Dispatcher) {
+func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *Dispatcher) {
 	var err error
 
 	if cd == 0 {
@@ -65,7 +66,7 @@ func CreateDispatcher(cd time.Duration) (d *Dispatcher) {
 
 	sl.L.Info("[master] Radis server up on %s", mr.Port())
 
-	D.Wpr, err = wrapper.CreateWrapper(wrapper.MASTER, 4, 1)
+	D.Wpr, err = wrapper.CreateWrapper(wrapper.MASTER, logLevel, sizeLogFile)
 	if err != nil {
 		panic(fmt.Sprintf("[master] %s", err.Error()))
 	}
@@ -87,6 +88,8 @@ func CreateDispatcher(cd time.Duration) (d *Dispatcher) {
 				D.Tasks[pc.Name].Required = append(D.Tasks[pc.Name].Required, strings.ToUpper(required))
 			} 
 			pc.Env[wrapper.NAME] = pc.Name
+			pc.Env[wrapper.LOG_LEVEL] = ciutils.IntToStr(int(logLevel))
+			pc.Env[wrapper.SIZE_LOG_FILE] = ciutils.Int64ToStr(sizeLogFile)
 			for name, val := range pc.Env {
 				D.Tasks[pc.Name].Env = append(D.Tasks[pc.Name].Env, fmt.Sprintf("%s=%s", strings.ToUpper(name), strings.ToUpper(val)))
 				sl.L.Debug("[master] task %s - env %v", pc.Name, D.Tasks[pc.Name].Env)
