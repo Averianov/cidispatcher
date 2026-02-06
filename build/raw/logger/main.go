@@ -1,7 +1,6 @@
 package main
 
 import (
-	
 	"github.com/Averianov/cidispatcher/wrapper"
 	sl "github.com/Averianov/cisystemlog"
 )
@@ -11,7 +10,7 @@ var (
 )
 
 func main() {
-	wpr, err := wrapper.CreateWrapper(Name)
+	wpr, err := wrapper.CreateWrapper(Name, 4, 1)
 	if err != nil {
 		panic(err.Error())
 	}

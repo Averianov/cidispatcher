@@ -1,36 +1,37 @@
 package dispatcher
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
-	"context"
-	"strings"
-	"strconv"
 
-	sl "github.com/Averianov/cisystemlog"
 	"github.com/Averianov/cidispatcher/wrapper"
+	sl "github.com/Averianov/cisystemlog"
 )
 
-const SYS_MEMFD_CREATE = 319 // Только для Linux x86_64
+const SYS_MEMFD_CREATE = 319 // Only for Linux x86_64
 const KILLING_ATTEMPT int = 3
 
 type Task struct {
 	sync.Mutex
-	Ctx 		 context.Context
-	Cancel		 context.CancelFunc
+	Ctx          context.Context
+	Cancel       context.CancelFunc
 	Name         string
 	ElfPayload   []byte
 	StMustStart  bool
 	StInProgress bool
 	StLaunched   bool
 	Required     []string
-	Cmd 		 *exec.Cmd
-	Reminder	 int
-	Wpr			 *wrapper.Wrapper
+	Cmd          *exec.Cmd
+	Reminder     int
+	Wpr          *wrapper.Wrapper
+	Env          []string
 }
 
 func (task *Task) LaunchInMemory(args []string) (err error) {
@@ -81,7 +82,7 @@ func (task *Task) LaunchInMemory(args []string) (err error) {
 	task.Cmd.Stdout = os.Stdout
 	task.Cmd.Stderr = os.Stderr
 	task.Cmd.Stdin = os.Stdin
-	task.Cmd.Env = append(task.Cmd.Env, fmt.Sprintf("NAME=%s", task.Name))
+	task.Cmd.Env = append(task.Cmd.Env, task.Env...)
 
 	if len(task.ElfPayload) < 4 || string(task.ElfPayload[:4]) != "\x7fELF" {
 		sl.L.Warning("[task] payload is not a valid ELF (magic bytes missing)")
@@ -97,9 +98,8 @@ func (task *Task) LaunchInMemory(args []string) (err error) {
 	}
 
 	go func() {
-		err := task.Cmd.Wait() // Автоматически "подберет" процесс, когда тот умрет
+		err := task.Cmd.Wait() // Auto "get" process, when die
 		if err != nil {
-            // Логируем ошибку, которая может быть вызвана отменой контекста
 			sl.L.Warning("[task] %s process finished with error: %s", task.Name, err)
 		} else {
 			sl.L.Info("[task] %s process finished successfully", task.Name)
@@ -161,7 +161,7 @@ func (task *Task) Stop() (err error) {
 		}
 	case KILLING_ATTEMPT:
 		sl.L.Info("[task] try kill %s by pid %d; reminder No%d", task.Name, task.Cmd.Process.Pid, task.Reminder)
-		task.Kill(process)		
+		task.Kill(process)
 		if err != nil {
 			sl.L.Warning("[task] %s err: %s ", task.Name, err.Error())
 		}
@@ -272,5 +272,5 @@ func (task *Task) Stopped() {
 // 	cmd := exec.Command(tempFile)
 // 	cmd.Run()
 
-// 	os.Remove(tempFile) // Удаление после работы
+// 	os.Remove(tempFile) // Remove after work
 // }

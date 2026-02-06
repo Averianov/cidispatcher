@@ -27,7 +27,7 @@ help:
 
 .PHONY: all workers clean $(WORKERS)
 
-all: workers prepare run
+all: clean workers prepare run
 ### rebuild workers #############################################
 
 RAW_DIR := ./build/raw
@@ -36,7 +36,7 @@ EXE_DIR := ./build/executable
 SOURCES := $(wildcard $(RAW_DIR)/*/main.go)
 WORKERS := $(patsubst $(RAW_DIR)/%/main.go, %, $(SOURCES))
 
-workers: clean $(WORKERS)
+workers: $(WORKERS)
 
 $(WORKERS): %:
 	@mkdir -p $(EXE_DIR)
@@ -53,5 +53,4 @@ prepare:
 
 run: 
 	go mod tidy
-	go clean -cache
 	go run ./cmd/main.go

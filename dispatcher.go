@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/Averianov/cidispatcher/build/memfd" // for upload Payloads
 	"github.com/Averianov/cidispatcher/wrapper"
 	sl "github.com/Averianov/cisystemlog"
 	ftgc "github.com/Averianov/ftgc"
@@ -20,14 +19,15 @@ const (
 )
 
 var (
-	D *Dispatcher
-	ProcessConfigs 		map[string]ProcessConfig = make(map[string]ProcessConfig)
+	D              *Dispatcher
+	ProcessConfigs map[string]ProcessConfig = make(map[string]ProcessConfig)
 )
 
 type ProcessConfig struct {
-	Name         string   `json:"name"`
-	MustStart    bool     `json:"must_start"`
-	Required     []string `json:"required"`
+	Name      string            `json:"name"`
+	MustStart bool              `json:"must_start"`
+	Required  []string          `json:"required"`
+	Env       map[string]string `json:"env"`
 }
 
 type Dispatcher struct {
@@ -65,25 +65,34 @@ func CreateDispatcher(cd time.Duration) (d *Dispatcher) {
 
 	sl.L.Info("[master] Radis server up on %s", mr.Port())
 
-	D.Wpr, err = wrapper.CreateWrapper(wrapper.MASTER)
+	D.Wpr, err = wrapper.CreateWrapper(wrapper.MASTER, 4, 1)
 	if err != nil {
 		panic(fmt.Sprintf("[master] %s", err.Error()))
 	}
 
 	// upload Payload Data
 	// sl.L.Debug("[master] ToGo: %v\n", ftgc.ToGo) // static map with byte data from FileToGoConverter
-	for _, pr := range ProcessConfigs {
-		if raw, ok := ftgc.ToGo[strings.ToUpper(pr.Name)]; ok { // name in map FileToGoConverter in uppercase; name in uppercase
-			sl.L.Info("[master] add task %s", pr.Name)
-			D.Tasks[pr.Name] = &Task{
-				Name:         pr.Name,
-				ElfPayload:   raw,
-				StMustStart:  pr.MustStart,
-				Required:     pr.Required,
-				Wpr: D.Wpr,
+	for _, pc := range ProcessConfigs {
+		pc.Name = strings.ToUpper(pc.Name)
+		if raw, ok := ftgc.ToGo[pc.Name]; ok { // name in map FileToGoConverter in uppercase; name in uppercase
+			sl.L.Info("[master] add task %s", pc.Name)
+			D.Tasks[pc.Name] = &Task{
+				Name:        pc.Name,
+				ElfPayload:  raw,
+				StMustStart: pc.MustStart,
+				Required:    []string{},
+				Wpr:         D.Wpr,
+			}
+			for _, required := range pc.Required {
+				D.Tasks[pc.Name].Required = append(D.Tasks[pc.Name].Required, strings.ToUpper(required))
+			} 
+			pc.Env[wrapper.NAME] = pc.Name
+			for name, val := range pc.Env {
+				D.Tasks[pc.Name].Env = append(D.Tasks[pc.Name].Env, fmt.Sprintf("%s=%s", strings.ToUpper(name), strings.ToUpper(val)))
+				sl.L.Debug("[master] task %s - env %v", pc.Name, D.Tasks[pc.Name].Env)
 			}
 		} else {
-			panic(fmt.Sprintf("[master] not found %s raw data\n", pr.Name))
+			panic(fmt.Sprintf("[master] not found %s raw data\n", pc.Name))
 		}
 	}
 	return D
@@ -107,7 +116,7 @@ func (d *Dispatcher) RadioKat() {
 		sl.L.Debug("[master] GOT: %s", value)
 		raw := strings.Split(value, " ")
 		if len(raw) == 2 {
-			if task, ok := d.Tasks[raw[1]]; ok {
+			if task, ok := d.Tasks[strings.ToUpper(raw[1])]; ok {
 				switch raw[0] {
 				case "launched":
 					task.Started()
@@ -119,7 +128,7 @@ func (d *Dispatcher) RadioKat() {
 					sl.L.Alert("[master] start recurcive stopping tasks from %s", task.Name)
 					d.RecurciveStop(task)
 				default:
-					//sl.L.Debug("[master] get %s", value)
+					sl.L.Debug("[master] get some: %s", value)
 				}
 			}
 		}
@@ -152,7 +161,7 @@ func (d *Dispatcher) RecurciveEnable(task *Task) {
 func (d *Dispatcher) ReadyToWork(task *Task) (ready bool) {
 	for _, rq := range task.Required { // check available main tasks
 		req := d.Tasks[rq]
-		if req.StMustStart && req.StLaunched  {
+		if req.StMustStart && req.StLaunched {
 			continue
 		}
 		return false
@@ -202,8 +211,8 @@ func (d *Dispatcher) StatusChecker() (err error) {
 					}
 
 					var prcs *os.Process
-					prcs, err = task.Check()				
-					if err == nil || (prcs != nil && err != nil) { // if process no started or process was frozen 
+					prcs, err = task.Check()
+					if err == nil || (prcs != nil && err != nil) { // if process no started or process was frozen
 						sl.L.Debug("[master] task %s - has launched process; daemon not ready to exit", task.Name)
 						readyToExit = false
 						break
@@ -231,7 +240,7 @@ func (d *Dispatcher) StatusChecker() (err error) {
 							sl.L.Warning("[master] %s err: %s ", task.Name, err.Error())
 						}
 					case task.StMustStart && !task.StInProgress && !task.StLaunched: // must started
-						if d.ReadyToWork(task){
+						if d.ReadyToWork(task) {
 							if task.ElfPayload == nil {
 								sl.L.Alert("[master] task %s - service not available", task.Name)
 								d.RecurciveStop(task)
@@ -247,7 +256,7 @@ func (d *Dispatcher) StatusChecker() (err error) {
 						}
 					case task.StMustStart && !task.StInProgress && task.StLaunched: // successfull launched
 						if !d.ReadyToWork(task) {
-							d.RecurciveEnable(task) // enabling all main tasks
+							d.RecurciveEnable(task)         // enabling all main tasks
 							task.Reminder = KILLING_ATTEMPT // kill process who work without main processes
 							err = task.Stop()
 							if err != nil {

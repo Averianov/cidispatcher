@@ -20,6 +20,8 @@ This dispatcher ensures:
 * `./Makefile` – Pre-configured automation for the dispatcher lifecycle.
 * `./cmd/core/main.go` – The example central entry point (add dispatcher and tasks to project).
 
+Add to projects main.go the import path like "_ **yourprojectname**/build/memfd" to adding Payload to project. 
+
 
 ### Prerequisites
 * Go 1.20+ (recommended)

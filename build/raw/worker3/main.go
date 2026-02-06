@@ -9,13 +9,13 @@ import (
 )
 
 const (
-	Name = "worker3"
+	Name   = "worker3"
 	logger = "logger"
 )
 
 // В конце останавливает себя и логгер
 func main() {
-	wpr, err := wrapper.CreateWrapper(Name)
+	wpr, err := wrapper.CreateWrapper(Name, 4, 0)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -24,7 +24,6 @@ func main() {
 		wpr.RegularStop()
 	}()
 
-	
 	defer sl.L.Warning("[%s] End task by timeout", wpr.Name)
 	var i int = 0
 	for {
