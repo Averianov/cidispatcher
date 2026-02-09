@@ -45,6 +45,7 @@ func Srv(wpr *wrapper.Wrapper) {
 		default:
 			err = wpr.SendToService("logger", fmt.Sprintf("%s:msg-%d", wpr.Name, i))
 			if err != nil {
+				time.Sleep(5 * time.Second)
 				sl.L.Warning(err.Error())
 				continue
 			}

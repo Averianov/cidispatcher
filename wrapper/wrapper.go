@@ -35,7 +35,7 @@ type Wrapper struct {
 	StopChan  chan struct{}
 	Env       map[string]string
 	TimeDelay map[string]int
-	NextTry   map[string]int64
+	NextTry   map[string]int64	
 }
 
 func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper, err error) {
@@ -122,7 +122,7 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 	Wpr.PubSub = Wpr.RClient.Subscribe(ctx, name)
 
 	if Wpr.Name != MASTER {
-		err = Wpr.sendToMaster("launched "+Wpr.Name, DEFAULT_TRYING_COUNT)
+		Wpr.sendToMaster("launched "+Wpr.Name)
 	}
 
 	sig := make(chan os.Signal, 1)
@@ -140,12 +140,12 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 }
 
 func (wpr *Wrapper) RegularStop() {
-	Wpr.sendToMaster("stopped "+Wpr.Name, DEFAULT_TRYING_COUNT)
+	Wpr.sendToMaster("stopped "+Wpr.Name)
 	Wpr.PubSub.Close()
 }
 
 func (wpr *Wrapper) StartService(serviceName string) (err error) {
-	err = wpr.sendToMaster("start "+serviceName, DEFAULT_TRYING_COUNT)
+	err = wpr.sendToMaster("start "+serviceName)
 	if err != nil {
 		sl.L.Warning("[%s] %s", Wpr.Name, err.Error())
 	}
@@ -153,7 +153,7 @@ func (wpr *Wrapper) StartService(serviceName string) (err error) {
 }
 
 func (wpr *Wrapper) StopService(serviceName string) (err error) {
-	err = wpr.sendToMaster("stop "+serviceName, DEFAULT_TRYING_COUNT)
+	err = wpr.sendToMaster("stop "+serviceName)
 	if err != nil {
 		sl.L.Warning("[%s] %s", Wpr.Name, err.Error())
 	}
@@ -162,17 +162,30 @@ func (wpr *Wrapper) StopService(serviceName string) (err error) {
 
 func (wpr *Wrapper) ReadGroup(tryCount int) (channal, msg string, err error) {
 	var rmsg *redis.Message
-	rmsg, err = wpr.PubSub.ReceiveMessage(context.Background())
-	if err != nil {
-		if tryCount > 0 {
-			tryCount--
-			time.Sleep(500 * time.Millisecond) // 0.5 sec
-			return wpr.ReadGroup(tryCount)
-		}
-		sl.L.Warning("[%s] %s", wpr.Name, err.Error())
+
+	int64Now := ciutils.TimeToInt64(ciutils.Now())
+	// sl.L.Debug("[%s] now: %v; NextTry: %v", wpr.Name, 
+	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(int64Now), "15:04:05"), 
+	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(wpr.NextTry[wpr.Name]), "15:04:05"))
+
+	if wpr.NextTry[wpr.Name] > int64Now {
+		err = fmt.Errorf("%s","Too mutch error Receive from redis server; wait to next available try")
+		sl.L.Debug("[%s] %s", wpr.Name, err.Error())
 		return
 	}
 
+	rmsg, err = wpr.PubSub.ReceiveMessage(context.Background())
+	if err != nil {
+		sl.L.Debug("[%s] Error ReceiveMessage:%s", wpr.Name, err.Error())
+		wpr.TimeDelay[wpr.Name]++
+		//sl.L.Debug("[%s] TimeDelay: %v; NextTry: %v", wpr.Name, wpr.TimeDelay[wpr.Name], wpr.NextTry[wpr.Name])
+		if wpr.TimeDelay[wpr.Name] > DEFAULT_TRYING_COUNT {
+			wpr.NextTry[wpr.Name] = ciutils.TimeToInt64(ciutils.Now().Add(time.Duration(wpr.TimeDelay[wpr.Name])*time.Second))
+		}
+		return
+	}
+
+	wpr.TimeDelay[wpr.Name] = 0
 	//sl.L.Debug("[%s] GOT RAW %v", wpr.Name, rmsg)
 	if raw := strings.Split(rmsg.Payload, " "); len(raw) > 1 {
 		switch raw[0] {
@@ -180,7 +193,7 @@ func (wpr *Wrapper) ReadGroup(tryCount int) (channal, msg string, err error) {
 			switch raw[1] {
 			case "status":
 				sl.L.Debug("[%s] Got: %s", wpr.Name, raw)
-				err = Wpr.sendToMaster("launched "+Wpr.Name, DEFAULT_TRYING_COUNT)
+				err = Wpr.sendToMaster("launched "+Wpr.Name)
 				if err != nil {
 					sl.L.Warning("[%s] %s", wpr.Name, err.Error())
 					return
@@ -201,28 +214,34 @@ func (wpr *Wrapper) SendToService(serviceName, value string) (err error) {
 	sl.L.Debug("[%s] Send to service %s: %s", wpr.Name, serviceName, value)
 
 	int64Now := ciutils.TimeToInt64(ciutils.Now())
-	if wpr.NextTry[serviceName] < int64Now {
-		err = wpr.RClient.Publish(ctx, serviceName, value).Err()
-		if err != nil {
-			sl.L.Warning("[%s] Error Publish:%s", wpr.Name, err.Error())
-			wpr.TimeDelay[serviceName]++
-			wpr.NextTry[serviceName] = int64Now + int64(time.Duration(wpr.TimeDelay[serviceName])*time.Second)
-			wpr.TimeDelay[serviceName] = 0
-		}
-	} else {
-		err = fmt.Errorf("[%s] Too mutch error connections to %s, please wait to next available try", wpr.Name, serviceName)
-		sl.L.Warning("[%s] %s", wpr.Name, err.Error())
+	// sl.L.Debug("[%s] now: %v; NextTry: %v", wpr.Name, 
+	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(int64Now), "15:04:05"), 
+	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(wpr.NextTry[serviceName]), "15:04:05"))
+
+	if wpr.NextTry[serviceName] > int64Now {
+		err = fmt.Errorf("[%s] Too mutch error Send to %s, wait to next available try", wpr.Name, serviceName)
+		sl.L.Debug("[%s] %s", wpr.Name, err.Error())
+		return
 	}
+
+	err = wpr.RClient.Publish(ctx, serviceName, value).Err()
+	if err != nil {
+		sl.L.Debug("[%s] Error Publish:%s", wpr.Name, err.Error())
+		wpr.TimeDelay[serviceName]++
+		//sl.L.Debug("[%s] TimeDelay: %v; NextTry: %v", wpr.Name, wpr.TimeDelay[serviceName], wpr.NextTry[serviceName])
+		if wpr.TimeDelay[serviceName] > DEFAULT_TRYING_COUNT {
+			wpr.NextTry[serviceName] = ciutils.TimeToInt64(ciutils.Now().Add(time.Duration(wpr.TimeDelay[serviceName])*time.Second))
+		}
+		return
+	}
+	wpr.TimeDelay[serviceName] = 0
 	return
 }
 
-func (wpr *Wrapper) sendToMaster(value string, tryCount int) (err error) {
-	//sl.L.Debug("[%s] Send to Master %s, try count: %d", wpr.Name, value, tryCount)
+func (wpr *Wrapper) sendToMaster(value string) (err error) {
 	err = wpr.SendToService(MASTER, value)
-	if err != nil && tryCount > 0 {
-		tryCount--
-		time.Sleep(time.Duration(wpr.TimeDelay[MASTER]) * time.Second)
-		err = wpr.sendToMaster(value, tryCount)
+	if err != nil {
+		sl.L.Alert("[%s] Master channel not available: %s", wpr.Name, err.Error())
 	}
 	return
 }
