@@ -4,7 +4,7 @@ go 1.25.6
 
 require (
 	github.com/Averianov/cisystemlog v0.1.7
-	github.com/Averianov/ciutils v0.0.2
+	github.com/Averianov/ciutils v0.0.8
 	github.com/Averianov/ftgc v0.0.6
 	github.com/alicebob/miniredis/v2 v2.36.1
 	github.com/redis/go-redis/v9 v9.17.2
