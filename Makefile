@@ -27,6 +27,14 @@ help:
 
 .PHONY: all workers clean $(WORKERS)
 
+runlogger:
+	LOGLEVEL=4 SIZE_LOG_FILE=1 NAME=LOGGER \
+	go run ./build/raw/logger
+
+runworker1:
+	LOGLEVEL=4 SIZE_LOG_FILE=1 NAME=WORKER1 \
+	go run ./build/raw/worker1
+
 all: clean workers prepare run
 ### rebuild workers #############################################
 
