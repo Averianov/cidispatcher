@@ -19,6 +19,7 @@ const (
 	MASTER               string = "MASTER"
 	LOG_LEVEL            string = "LOGLEVEL"
 	SIZE_LOG_FILE        string = "SIZE_LOG_FILE"
+	TIMELOCATION         string = "TIMELOCATION"
 	PORT_FILE_PATH       string = "./port"
 	DEFAULT_TRYING_COUNT int    = 3
 )
@@ -28,11 +29,13 @@ var (
 )
 
 type Wrapper struct {
-	Name     string
-	RClient  *redis.Client
-	PubSub   *redis.PubSub
-	StopChan chan struct{}
-	Env      map[string]string
+	Name      string
+	RClient   *redis.Client
+	PubSub    *redis.PubSub
+	StopChan  chan struct{}
+	Env       map[string]string
+	TimeDelay map[string]int
+	NextTry   map[string]int64
 }
 
 func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper, err error) {
@@ -41,7 +44,6 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 		return
 	}
 	name = strings.ToUpper(name)
-	//fmt.Printf("wpr name: '%s'\n", name)
 
 	if logLevel < 1 {
 		val, ok := os.LookupEnv(LOG_LEVEL)
@@ -68,8 +70,18 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 	sl.CreateLogs(name, "./log/", logLevel, sizeLogFile)
 
 	Wpr = &Wrapper{
-		StopChan: make(chan struct{}),
-		Env:      make(map[string]string),
+		StopChan:  make(chan struct{}),
+		Env:       make(map[string]string),
+		TimeDelay: make(map[string]int),
+		NextTry:   make(map[string]int64),
+	}
+
+	if val, ok := os.LookupEnv(TIMELOCATION); ok {
+		ciutils.TimeLocation, err = time.LoadLocation(val)
+		if err != nil {
+			sl.L.Warning("[%s] %s", name, err.Error())
+			return
+		}
 	}
 
 	// Recheck nameing task in process as in dispatcher
@@ -96,7 +108,7 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 		sl.L.Warning("[%s] %s", name, err.Error())
 		return
 	}
-	rport := string(raw)	
+	rport := string(raw)
 	sl.L.Debug("[%s] connect to Redis on: %s", name, rport)
 	Wpr.RClient = redis.NewClient(&redis.Options{
 		Addr:             "localhost:" + rport,
@@ -187,20 +199,29 @@ func (wpr *Wrapper) SendToService(serviceName, value string) (err error) {
 	ctx := context.Background()
 	serviceName = strings.ToUpper(serviceName)
 	sl.L.Debug("[%s] Send to service %s: %s", wpr.Name, serviceName, value)
-	err = wpr.RClient.Publish(ctx, serviceName, value).Err()
-	if err != nil {
-		sl.L.Warning("[%s] Error Publish:%s", wpr.Name, err.Error())
-		time.Sleep(1 * time.Second)
+
+	int64Now := ciutils.TimeToInt64(ciutils.Now())
+	if wpr.NextTry[serviceName] < int64Now {
+		err = wpr.RClient.Publish(ctx, serviceName, value).Err()
+		if err != nil {
+			sl.L.Warning("[%s] Error Publish:%s", wpr.Name, err.Error())
+			wpr.TimeDelay[serviceName]++
+			wpr.NextTry[serviceName] = int64Now + int64(time.Duration(wpr.TimeDelay[serviceName])*time.Second)
+			wpr.TimeDelay[serviceName] = 0
+		}
+	} else {
+		err = fmt.Errorf("[%s] Too mutch error connections to %s, please wait to next available try", wpr.Name, serviceName)
+		sl.L.Warning("[%s] %s", wpr.Name, err.Error())
 	}
 	return
 }
 
 func (wpr *Wrapper) sendToMaster(value string, tryCount int) (err error) {
-	sl.L.Debug("[%s] Send to Master %s, try count: %d", wpr.Name, value, tryCount)
+	//sl.L.Debug("[%s] Send to Master %s, try count: %d", wpr.Name, value, tryCount)
 	err = wpr.SendToService(MASTER, value)
 	if err != nil && tryCount > 0 {
 		tryCount--
-		time.Sleep(500 * time.Millisecond) // 0.5 sec
+		time.Sleep(time.Duration(wpr.TimeDelay[MASTER]) * time.Second)
 		err = wpr.sendToMaster(value, tryCount)
 	}
 	return
