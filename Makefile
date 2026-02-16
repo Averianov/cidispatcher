@@ -34,6 +34,12 @@ runlogger:
 runworker1:
 	LOGLEVEL=4 SIZE_LOG_FILE=1 NAME=WORKER1 \
 	go run ./build/raw/worker1
+	
+runsender:
+	#LOGLEVEL=4 SIZE_LOG_FILE=1 NAME=SENDER \
+	#go run ./cmd/sender -ch=master -m="status sender"
+	go run ./cmd/sender -ch=master -m="exit sender"
+	#go run ./cmd/sender -ch=master -m="start worker3"
 
 all: clean workers prepare run
 ### rebuild workers #############################################
@@ -61,4 +67,4 @@ prepare:
 
 run: 
 	go mod tidy
-	go run ./cmd/main.go
+	go run ./cmd/core/main.go

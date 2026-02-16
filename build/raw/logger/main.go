@@ -28,7 +28,7 @@ func main() {
 			sl.L.Warning("[%s] Stopping from Channel", wpr.Name)
 			return
 		default:
-			_, msg, err := wpr.ReadGroup(wrapper.DEFAULT_TRYING_COUNT)
+			_, msg, err := wpr.ReadGroup()
 			if err != nil {
 				time.Sleep(5 * time.Second)
 				sl.L.Warning(err.Error())

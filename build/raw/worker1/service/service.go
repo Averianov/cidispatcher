@@ -15,7 +15,7 @@ func Srv(wpr *wrapper.Wrapper) {
 	// Launch self channel reader
 	go func() {
 		for {
-			_, msg, err := wpr.ReadGroup(wrapper.DEFAULT_TRYING_COUNT)
+			_, msg, err := wpr.ReadGroup()
 			if err != nil {
 				sl.L.Warning(err.Error())
 				if _, ok := <-wpr.StopChan; !ok { // check parent process

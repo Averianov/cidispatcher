@@ -98,6 +98,14 @@ func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *D
 			panic(fmt.Sprintf("[master] not found %s raw data\n", pc.Name))
 		}
 	}
+
+	D.Tasks[wrapper.SENDER] = &Task{
+		Name:        wrapper.SENDER,
+		ElfPayload:  nil,
+		StMustStart: false,
+		Required:    []string{},
+		Wpr: D.Wpr,
+	}
 	return D
 }
 
@@ -106,12 +114,13 @@ func (d *Dispatcher) Launch() {
 	defer os.Remove(wrapper.PORT_FILE_PATH)
 
 	go d.RadioKat()
+	time.Sleep(3 * time.Second)
 	d.StatusChecker()
 }
 
 func (d *Dispatcher) RadioKat() {
 	for {
-		_, value, err := d.Wpr.ReadGroup(1)
+		_, value, err := d.Wpr.ReadGroup()
 		if err != nil {
 			sl.L.Warning(err.Error())
 			continue
@@ -119,17 +128,28 @@ func (d *Dispatcher) RadioKat() {
 		sl.L.Debug("[master] GOT: %s", value)
 		raw := strings.Split(value, " ")
 		if len(raw) == 2 {
-			if task, ok := d.Tasks[strings.ToUpper(raw[1])]; ok {
-				switch raw[0] {
-				case "launched":
+			sl.L.Debug("[master] is command: %s", value)
+			if task, ok := d.Tasks[strings.ToUpper(raw[1])]; ok || strings.ToUpper(raw[1]) == wrapper.SENDER {
+				sl.L.Debug("[master] raw[0]: %s", raw[0])
+
+				switch strings.ToUpper(raw[0]) {
+				case wrapper.LAUNCHED:
 					task.Started()
-				case "stopped":
+				case wrapper.STOPPED:
 					task.Stopped()
-				case "start":
+				case wrapper.START:
 					task.Enable()
-				case "stop":
+				case wrapper.STOP:
 					sl.L.Alert("[master] start recurcive stopping tasks from %s", task.Name)
 					d.RecurciveStop(task)
+				case wrapper.STATUS:
+					smsg := d.StatusAfterChanges()
+					d.Wpr.SendToService(task.Name, smsg)
+				case wrapper.EXIT:
+					sl.L.Alert("[master] got exit from application")
+					for _, t := range d.Tasks {
+						d.RecurciveStop(t)
+					}
 				default:
 					sl.L.Debug("[master] get some: %s", value)
 				}
@@ -197,12 +217,13 @@ func (d *Dispatcher) StatusChecker() (err error) {
 		default:
 			if timeToCheck {
 				//### Tasks status before changes ####################################
-				var msg string
-				for _, task := range d.Tasks {
-					msg = msg + fmt.Sprintf("				[master]  %s	(Must: %v;	InProgress %v;	Current: %v)\n",
-						task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
-				}
-				sl.L.Debug("[master] \n\n\n################################\n%s", msg)
+				d.StatusBeforeChanges()
+				// var msg string
+				// for _, task := range d.Tasks {
+				// 	msg = msg + fmt.Sprintf("				[master]  %s	(Must: %v;	InProgress %v;	Current: %v)\n",
+				// 		task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
+				// }
+				// sl.L.Debug("[master] \n\n\n################################\n%s", msg)
 
 				//### check Gracefull shutdown application ##########
 				readyToExit := true
@@ -230,6 +251,10 @@ func (d *Dispatcher) StatusChecker() (err error) {
 
 				//### check Tasks #####################################
 				for _, task := range d.Tasks {
+					if task.Name == wrapper.SENDER {
+						continue
+					}
+
 					switch true {
 					case task.StMustStart && task.StInProgress && task.StLaunched: // only check why still in progress
 						sl.L.Debug("[master] task %s - still in starting progress; try shutdown zombie process", task.Name)
@@ -289,12 +314,13 @@ func (d *Dispatcher) StatusChecker() (err error) {
 				}
 
 				//### Tasks status after changes ####################################
-				msg = ""
-				for _, task := range d.Tasks {
-					msg = msg + fmt.Sprintf("				[master]  %s	(Must: %v;	InProgress %v;	Current: %v)\n",
-						task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
-				}
-				sl.L.Debug("[master] \n%s\n################################\n\n\n", msg)
+				d.StatusAfterChanges()
+				// msg = ""
+				// for _, task := range d.Tasks {
+				// 	msg = msg + fmt.Sprintf("				[master]  %s	(Must: %v;	InProgress %v;	Current: %v)\n",
+				// 		task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
+				// }
+				// sl.L.Debug("[master] \n%s\n################################\n\n\n", msg)
 
 				timeToCheck = false // for exclude many check trying
 			} else {
@@ -303,3 +329,23 @@ func (d *Dispatcher) StatusChecker() (err error) {
 		}
 	}
 }
+
+func (d *Dispatcher) StatusBeforeChanges() (msg string) {
+	for _, task := range d.Tasks {
+		msg = msg + fmt.Sprintf("				[master]  %s	(Must: %v;	InProgress %v;	Current: %v)\n",
+			task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
+	}
+	sl.L.Debug("[master] \n\n\n################################\n%s", msg)
+	return
+}
+
+func (d *Dispatcher) StatusAfterChanges() (msg string) {
+	for _, task := range d.Tasks {
+		msg = msg + fmt.Sprintf("				[master]  %s	(Must: %v;	InProgress %v;	Current: %v)\n",
+			task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
+	}
+	sl.L.Debug("[master] \n\n\n################################\n%s\n################################\n\n\n", msg)
+	return
+}
+
+

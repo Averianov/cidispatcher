@@ -21,8 +21,7 @@ func main() {
 		Name: LOGGER, 
 		MustStart: false, 
 		Required: []string{}, 
-		Env: map[string]string{"testname":"testvalue",
-	}}
+		Env: map[string]string{"testname":"testvalue"}}
 	dspr.ProcessConfigs[WORKER1] = dspr.ProcessConfig{WORKER1, true, []string{LOGGER}, map[string]string{}}
 	dspr.ProcessConfigs[WORKER2] = dspr.ProcessConfig{WORKER2, false, []string{LOGGER}, map[string]string{}}
 	dspr.ProcessConfigs[WORKER3] = dspr.ProcessConfig{WORKER3, false, []string{LOGGER}, map[string]string{}}

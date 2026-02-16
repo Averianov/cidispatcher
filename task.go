@@ -132,7 +132,7 @@ func (task *Task) Check() (launched *os.Process, err error) {
 		return
 	}
 
-	err = task.Wpr.SendToService(task.Name, "get status")
+	err = task.Wpr.SendToService(task.Name, task.Name + " " + wrapper.STATUS)
 	if err != nil {
 		sl.L.Warning("[master] %s err: %s ", task.Name, err.Error())
 		return

@@ -17,11 +17,21 @@ import (
 const (
 	NAME                 string = "NAME"
 	MASTER               string = "MASTER"
+	SENDER				 string = "SENDER"
 	LOG_LEVEL            string = "LOGLEVEL"
 	SIZE_LOG_FILE        string = "SIZE_LOG_FILE"
 	TIMELOCATION         string = "TIMELOCATION"
 	PORT_FILE_PATH       string = "./port"
 	DEFAULT_TRYING_COUNT int    = 3
+)
+
+const (
+	STATUS string = "STATUS"
+	LAUNCHED string = "LAUNCHED"
+	STOPPED string = "STOPPED"
+	START string = "START"
+	STOP string = "STOP"
+	EXIT string = "EXIT"
 )
 
 var (
@@ -85,7 +95,7 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 	}
 
 	// Recheck nameing task in process as in dispatcher
-	if name != MASTER && len(os.Environ()) > 0 {
+	if name != MASTER && name != SENDER && len(os.Environ()) > 0 {
 		for _, val := range os.Environ() {
 			//sl.L.Debug("[%s] got env: %s", name, val)
 			senv := strings.Split(val, "=")
@@ -121,8 +131,8 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 	ctx := context.Background()
 	Wpr.PubSub = Wpr.RClient.Subscribe(ctx, name)
 
-	if Wpr.Name != MASTER {
-		Wpr.sendToMaster("launched "+Wpr.Name)
+	if Wpr.Name != MASTER && Wpr.Name != SENDER {
+		Wpr.sendToMaster(LAUNCHED + " " + Wpr.Name)
 	}
 
 	sig := make(chan os.Signal, 1)
@@ -140,12 +150,12 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 }
 
 func (wpr *Wrapper) RegularStop() {
-	Wpr.sendToMaster("stopped "+Wpr.Name)
+	Wpr.sendToMaster(STOPPED + " " + Wpr.Name)
 	Wpr.PubSub.Close()
 }
 
 func (wpr *Wrapper) StartService(serviceName string) (err error) {
-	err = wpr.sendToMaster("start "+serviceName)
+	err = wpr.sendToMaster(START + " " + serviceName)
 	if err != nil {
 		sl.L.Warning("[%s] %s", Wpr.Name, err.Error())
 	}
@@ -153,14 +163,14 @@ func (wpr *Wrapper) StartService(serviceName string) (err error) {
 }
 
 func (wpr *Wrapper) StopService(serviceName string) (err error) {
-	err = wpr.sendToMaster("stop "+serviceName)
+	err = wpr.sendToMaster(STOP + " " + serviceName)
 	if err != nil {
 		sl.L.Warning("[%s] %s", Wpr.Name, err.Error())
 	}
 	return
 }
 
-func (wpr *Wrapper) ReadGroup(tryCount int) (channal, msg string, err error) {
+func (wpr *Wrapper) ReadGroup() (channal, msg string, err error) {
 	var rmsg *redis.Message
 
 	int64Now := ciutils.TimeToInt64(ciutils.Now())
@@ -188,19 +198,23 @@ func (wpr *Wrapper) ReadGroup(tryCount int) (channal, msg string, err error) {
 	wpr.TimeDelay[wpr.Name] = 0
 	//sl.L.Debug("[%s] GOT RAW %v", wpr.Name, rmsg)
 	if raw := strings.Split(rmsg.Payload, " "); len(raw) > 1 {
-		switch raw[0] {
-		case "get":
-			switch raw[1] {
-			case "status":
+		// switch raw[1] {
+		// case wpr.Name:
+			switch strings.ToUpper(raw[0]) {
+			case STATUS:
+				if wpr.Name == MASTER || wpr.Name == SENDER {
+					break
+				}
+
 				sl.L.Debug("[%s] Got: %s", wpr.Name, raw)
-				err = Wpr.sendToMaster("launched "+Wpr.Name)
+				err = Wpr.SendToService(strings.ToUpper(raw[1]), LAUNCHED + " " + Wpr.Name)
 				if err != nil {
 					sl.L.Warning("[%s] %s", wpr.Name, err.Error())
 					return
 				}
 				return
 			}
-		}
+		// }
 	}
 
 	channal = rmsg.Channel
