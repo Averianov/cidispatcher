@@ -92,8 +92,8 @@ func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *D
 			pc.Env[wrapper.SIZE_LOG_FILE] = ciutils.Int64ToStr(sizeLogFile)
 			for name, val := range pc.Env {
 				D.Tasks[pc.Name].Env = append(D.Tasks[pc.Name].Env, fmt.Sprintf("%s=%s", strings.ToUpper(name), strings.ToUpper(val)))
-				sl.L.Debug("[master] task %s - env %v", pc.Name, D.Tasks[pc.Name].Env)
 			}
+			sl.L.Debug("[master] task %s - got envs:\n%v", pc.Name, D.Tasks[pc.Name].Env)
 		} else {
 			panic(fmt.Sprintf("[master] not found %s raw data\n", pc.Name))
 		}
