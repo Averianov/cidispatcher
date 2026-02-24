@@ -1,7 +1,7 @@
 package dispatcher
 
 import (
-	"fmt"
+	//"fmt"
 	"time"
 	"flag"
 
@@ -11,26 +11,29 @@ import (
 
 func ManualSender() {
 	ch := flag.String("ch", "master", "channel")
-	msg := flag.String("m", wrapper.STATUS+" "+wrapper.SENDER, "message")
+	msg := flag.String("m", wrapper.STATUS, "message")
+	l := flag.Int("l", 3, "log level")
     flag.Parse()
 
-	wpr, err := wrapper.CreateWrapper(wrapper.SENDER, 3, 0)
-	if err != nil {
-		panic(fmt.Sprintf("[sender] %s", err.Error()))
-	}
+	wpr := wrapper.CreateWrapper(wrapper.SENDER, int32(*l), 0)
 
 	go func() {
-		var rmsg string
-		_, rmsg, err = wpr.ReadGroup()
-
-		sl.L.Info("[%s]\n%s", wpr.Name, rmsg)
+		_, _, value, err := wpr.ReadGroup()
+		if err != nil {
+			sl.L.Warning("[%s]%s", wpr.Name, err.Error())
+			//panic(fmt.Sprintf("[sender] %s", err.Error()))
+			return
+		}
+		sl.L.Info("\n%s", value)
 	}()
 	
 	time.Sleep(1 * time.Second)
 
-	err = wpr.SendToService(*ch, *msg)
+	err := wpr.SendToService(*ch, *msg)
 	if err != nil {
-		panic(fmt.Sprintf("[sender] %s", err.Error()))
+		sl.L.Warning("[%s]%s", wpr.Name, err.Error())
+		//panic(fmt.Sprintf("[sender] %s", err.Error()))
+		return
 	}
 
 	time.Sleep(1 * time.Second)

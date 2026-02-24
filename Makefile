@@ -36,9 +36,9 @@ runworker1:
 	go run ./build/raw/worker1
 	
 runsender:
-	#LOGLEVEL=4 SIZE_LOG_FILE=1 NAME=SENDER \
-	#go run ./cmd/sender -ch=master -m="status sender"
-	go run ./cmd/sender -ch=master -m="exit sender"
+	go run ./cmd/sender -m="status" -l=3
+	#go run ./cmd/sender -ch=worker3 -m="status"
+	#go run ./cmd/sender -ch=master -m="exit" -l=4
 	#go run ./cmd/sender -ch=master -m="start worker3"
 
 all: clean workers prepare run
