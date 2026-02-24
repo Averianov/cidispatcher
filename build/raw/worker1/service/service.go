@@ -11,29 +11,6 @@ import (
 //### Work #################################################################
 func Srv(wpr *wrapper.Wrapper) {
 	var err error
-
-	// Launch self channel reader
-	go func() {
-		for {
-			_, msg, err := wpr.ReadGroup()
-			if err != nil {
-				sl.L.Warning(err.Error())
-				if _, ok := <-wpr.StopChan; !ok { // check parent process
-					return
-				}
-				continue
-			}
-
-			switch msg {
-			case "stop":
-				sl.L.Info("[%s] try stop parent process", wpr.Name)
-				wpr.StopChan <- struct{}{} // stop parent process
-			default:
-				sl.L.Info("[%s] GOT: %s - %s", wpr.Name, msg)
-			}
-		}
-	}()
-
 	defer sl.L.Warning("[%s] End task by timeout", wpr.Name)
 
 	var i int = 0

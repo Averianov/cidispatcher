@@ -11,31 +11,18 @@ var (
 	Name = "logger"
 )
 
+// RadioKat implementation
+var rk = func(sender, value string) {
+	sl.L.Info("[%s] GOT {sender: %s value: %s}", Name, sender, value)
+}
+
 func main() {
-	wpr, err := wrapper.CreateWrapper(Name, -1, -1)
-	if err != nil {
-		panic(err.Error())
-	}
-	defer wpr.RegularStop()
+	wrapper.RadioKat = rk
+	wrapper.CreateWrapper(Name, -1, -1)
 
 	//### Work #################################################################
-	defer sl.L.Warning("[%s] End task by timeout", wpr.Name)
-
-	var i int = 0
 	for {
-		select {
-		case <-wpr.StopChan:
-			sl.L.Warning("[%s] Stopping from Channel", wpr.Name)
-			return
-		default:
-			_, msg, err := wpr.ReadGroup()
-			if err != nil {
-				time.Sleep(5 * time.Second)
-				sl.L.Warning(err.Error())
-				continue
-			}
-			sl.L.Info("[%s] GOT: %s", wpr.Name, msg)
-			i++
-		}
+		time.Sleep(5 * time.Second)
+		sl.L.Debug("do any service work")
 	}
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/Averianov/cidispatcher/build/raw/worker1/service"
 	"github.com/Averianov/cidispatcher/wrapper"
+	sl "github.com/Averianov/cisystemlog"
 )
 
 const (
@@ -10,14 +11,21 @@ const (
 )
 
 func main() {
-	wpr, err := wrapper.CreateWrapper(Name, -1, -1)
-	if err != nil {
-		panic(err.Error())
+
+	wpr := wrapper.CreateWrapper(Name, -1, -1)
+
+	// RadioKat implementation
+	wrapper.RadioKat = func(sender, value string) {
+		switch value {
+		case "stop":
+			sl.L.Info("[%s] try stop parent process", wpr.Name)
+			wpr.StopChan <- struct{}{} // stop parent process
+		default:
+			sl.L.Info("[%s] GOT: from %s: %s", wpr.Name, sender, value)
+		}
 	}
-	defer wpr.RegularStop()
-
+	
 	service.Srv(wpr)
-
 	//wpr.StartService("worker2") // инициировать запуск worker2 через master_sock
 	//wpr.StopService(wpr.Name)   // "должен быть остановлен" - чтобы повторно не запускался
 }

@@ -15,14 +15,12 @@ const (
 
 // В конце останавливает себя и логгер
 func main() {
-	wpr, err := wrapper.CreateWrapper(Name, -1, -1)
-	if err != nil {
-		panic(err.Error())
+	var err error 
+	wpr := wrapper.CreateWrapper(Name, -1, -1)
+	// RadioKat implementation
+	wrapper.RadioKat = func(sender, value string) {
+		sl.L.Info("[%s] GOT {sender: %s value: %s}", Name, sender, value)
 	}
-	defer func() {
-		//wpr.StopService(wpr.Name) // stop self service - disable autostart after shutdown
-		wpr.RegularStop()
-	}()
 
 	defer sl.L.Warning("[%s] End task by timeout", wpr.Name)
 	var i int = 0
