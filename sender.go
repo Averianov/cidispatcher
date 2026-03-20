@@ -10,7 +10,7 @@ import (
 )
 
 func ManualSender() {
-	ch := flag.String("ch", "master", "channel")
+	ch := flag.String("ch",  wrapper.MASTER, "channel")
 	msg := flag.String("m", wrapper.STATUS, "message")
 	l := flag.Int("l", 3, "log level")
     flag.Parse()

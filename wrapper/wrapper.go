@@ -37,6 +37,8 @@ const (
 
 var (
 	Wpr *Wrapper
+
+	// Sender, Value receive from redis response
 	RadioKat func(string, string) // function which preparing receive data from redis channel
 )
 

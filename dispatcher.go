@@ -225,6 +225,9 @@ func (d *Dispatcher) StatusChecker() (err error) {
 				//### check Gracefull shutdown application ##########
 				readyToExit := true
 				for _, task := range d.Tasks {
+					if task.Name == wrapper.SENDER {
+						continue
+					}
 					if task.StMustStart || task.StMustStart != task.StLaunched { // if not ready to shutdown - disable marker
 						sl.L.Debug("[master] some tasks still in work; daemon not ready to exit")
 						readyToExit = false
