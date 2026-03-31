@@ -92,7 +92,9 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 		}
 	}
 
-	sl.CreateLogs(name, "./log/", logLevel, sizeLogFile)
+	if sl.L == nil {
+		sl.CreateLogs(name, "./log/", logLevel, sizeLogFile)
+	}
 
 	Wpr = &Wrapper{
 		StopChan:  make(chan struct{}),
@@ -203,13 +205,16 @@ func (wpr *Wrapper) ReadGroup() (channel, sender, value string, err error) {
 
 	rmsg, err = wpr.PubSub.ReceiveMessage(context.Background())
 	if err != nil {
-		sl.L.Debug("[%s] Error ReceiveMessage:%s", wpr.Name, err.Error())
-		wpr.TimeDelay[wpr.Name] = wpr.TimeDelay[wpr.Name] + 4
+		//sl.L.Debug("[%s] Error ReceiveMessage:%s", wpr.Name, err.Error())
+		if wpr.TimeDelay[wpr.Name] == 0 {
+			wpr.TimeDelay[wpr.Name] = 1
+		}
+		wpr.TimeDelay[wpr.Name] = wpr.TimeDelay[wpr.Name] * 2
 		//sl.L.Debug("[%s] TimeDelay: %v; NextTry: %v", wpr.Name, wpr.TimeDelay[wpr.Name], ciutils.Int64ToTime(wpr.NextTry[wpr.Name]))
 		wpr.NextTry[wpr.Name] = ciutils.TimeToInt64(ciutils.Now().Add(time.Duration(wpr.TimeDelay[wpr.Name]) * time.Second))
 		return
 	}
-	wpr.TimeDelay[wpr.Name] = 0
+	wpr.TimeDelay[wpr.Name] = 1
 
 	//sl.L.Debug("[%s] GOT RAW %v", wpr.Name, rmsg)
 	channel = rmsg.Channel
@@ -255,22 +260,24 @@ func (wpr *Wrapper) SendToService(channelName, value string) (err error) {
 	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(wpr.NextTry[channelName]), "15:04:05"))
 
 	if wpr.NextTry[channelName] > int64Now {
-		err = fmt.Errorf("[%s] Too mutch error Send to %s, wait to next available try", wpr.Name, channelName)
-		sl.L.Debug("[%s] %s", wpr.Name, err.Error())
+		//err = fmt.Errorf("[%s] Too mutch error Send to %s, wait to next available try", wpr.Name, channelName)
+		err = fmt.Errorf("%s", JUST_WAIT)
+		//sl.L.Debug("[%s] %s", wpr.Name, err.Error())
 		return
 	}
 
 	err = wpr.RClient.Publish(ctx, channelName, wpr.Name+SEPARATOR+value).Err()
 	if err != nil {
 		sl.L.Debug("[%s] Error Publish:%s", wpr.Name, err.Error())
-		wpr.TimeDelay[channelName]++
-		//sl.L.Debug("[%s] TimeDelay: %v; NextTry: %v", wpr.Name, wpr.TimeDelay[channelName], wpr.NextTry[channelName])
-		if wpr.TimeDelay[channelName] > DEFAULT_TRYING_COUNT {
-			wpr.NextTry[channelName] = ciutils.TimeToInt64(ciutils.Now().Add(time.Duration(wpr.TimeDelay[channelName]) * time.Second))
+		if wpr.TimeDelay[channelName] == 0 {
+			wpr.TimeDelay[channelName] = 1
 		}
+		wpr.TimeDelay[channelName] = wpr.TimeDelay[channelName] * 2
+		//sl.L.Debug("[%s] TimeDelay: %v; NextTry: %v", wpr.Name, wpr.TimeDelay[channelName], wpr.NextTry[channelName])
+		wpr.NextTry[channelName] = ciutils.TimeToInt64(ciutils.Now().Add(time.Duration(wpr.TimeDelay[channelName]) * time.Second))
 		return
 	}
-	wpr.TimeDelay[channelName] = 0
+	wpr.TimeDelay[channelName] = 1
 	return
 }
 
