@@ -15,24 +15,27 @@ import (
 )
 
 const (
-	NAME                 string = "NAME"
-	MASTER               string = "MASTER"
-	SENDER				 string = "SENDER"
-	LOG_LEVEL            string = "LOGLEVEL"
-	SIZE_LOG_FILE        string = "SIZE_LOG_FILE"
-	TIMELOCATION         string = "TIMELOCATION"
-	PORT_FILE_PATH       string = "./port"
-	DEFAULT_TRYING_COUNT int    = 3
+	NAME           string = "NAME"
+	MASTER         string = "MASTER"
+	SENDER         string = "SENDER"
+	LOG_LEVEL      string = "LOGLEVEL"
+	SIZE_LOG_FILE  string = "SIZE_LOG_FILE"
+	TIMELOCATION   string = "TIMELOCATION"
+	PORT_FILE_PATH string = "./port"
+
 	SEPARATOR string = ":::"
+
+	DEFAULT_TRYING_COUNT int    = 2
+	JUST_WAIT            string = "jw"
 )
 
 const (
-	STATUS string = "STATUS"
+	STATUS   string = "STATUS"
 	LAUNCHED string = "LAUNCHED"
-	STOPPED string = "STOPPED"
-	START string = "START"
-	STOP string = "STOP"
-	EXIT string = "EXIT"
+	STOPPED  string = "STOPPED"
+	START    string = "START"
+	STOP     string = "STOP"
+	EXIT     string = "EXIT"
 )
 
 var (
@@ -49,7 +52,7 @@ type Wrapper struct {
 	StopChan  chan struct{}
 	Env       map[string]string
 	TimeDelay map[string]int
-	NextTry   map[string]int64	
+	NextTry   map[string]int64
 }
 
 // CreateWrapper got name current service and logLevel & sizeLogFile for cisystemlog
@@ -168,7 +171,7 @@ func (wpr *Wrapper) RegularStop() {
 }
 
 func (wpr *Wrapper) StartService(serviceName string) (err error) {
-	err = wpr.SendToService(MASTER, START + SEPARATOR + serviceName)
+	err = wpr.SendToService(MASTER, START+SEPARATOR+serviceName)
 	if err != nil {
 		sl.L.Warning("[%s] %s", Wpr.Name, err.Error())
 	}
@@ -176,7 +179,7 @@ func (wpr *Wrapper) StartService(serviceName string) (err error) {
 }
 
 func (wpr *Wrapper) StopService(serviceName string) (err error) {
-	err = wpr.SendToService(MASTER, STOP + SEPARATOR + serviceName)
+	err = wpr.SendToService(MASTER, STOP+SEPARATOR+serviceName)
 	if err != nil {
 		sl.L.Warning("[%s] %s", Wpr.Name, err.Error())
 	}
@@ -187,37 +190,36 @@ func (wpr *Wrapper) ReadGroup() (channel, sender, value string, err error) {
 	var rmsg *redis.Message
 
 	int64Now := ciutils.TimeToInt64(ciutils.Now())
-	// sl.L.Debug("[%s] now: %v; NextTry: %v", wpr.Name, 
-	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(int64Now), "15:04:05"), 
+	// sl.L.Debug("[%s] now: %v; NextTry: %v", wpr.Name,
+	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(int64Now), "15:04:05"),
 	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(wpr.NextTry[wpr.Name]), "15:04:05"))
 
 	if wpr.NextTry[wpr.Name] > int64Now {
-		err = fmt.Errorf("%s","Too mutch error Receive from redis server; wait to next available try")
-		sl.L.Debug("[%s] %s", wpr.Name, err.Error())
+		//err = fmt.Errorf("%s", "Too mutch error Receive from redis server; wait to next available try")
+		err = fmt.Errorf("%s", JUST_WAIT)
+		//sl.L.Debug("[%s] %s", wpr.Name, err.Error())
 		return
 	}
 
 	rmsg, err = wpr.PubSub.ReceiveMessage(context.Background())
 	if err != nil {
 		sl.L.Debug("[%s] Error ReceiveMessage:%s", wpr.Name, err.Error())
-		wpr.TimeDelay[wpr.Name]++
-		//sl.L.Debug("[%s] TimeDelay: %v; NextTry: %v", wpr.Name, wpr.TimeDelay[wpr.Name], wpr.NextTry[wpr.Name])
-		if wpr.TimeDelay[wpr.Name] > DEFAULT_TRYING_COUNT {
-			wpr.NextTry[wpr.Name] = ciutils.TimeToInt64(ciutils.Now().Add(time.Duration(wpr.TimeDelay[wpr.Name])*time.Second))
-		}
+		wpr.TimeDelay[wpr.Name] = wpr.TimeDelay[wpr.Name] + 4
+		//sl.L.Debug("[%s] TimeDelay: %v; NextTry: %v", wpr.Name, wpr.TimeDelay[wpr.Name], ciutils.Int64ToTime(wpr.NextTry[wpr.Name]))
+		wpr.NextTry[wpr.Name] = ciutils.TimeToInt64(ciutils.Now().Add(time.Duration(wpr.TimeDelay[wpr.Name]) * time.Second))
 		return
 	}
 	wpr.TimeDelay[wpr.Name] = 0
-	
+
 	//sl.L.Debug("[%s] GOT RAW %v", wpr.Name, rmsg)
 	channel = rmsg.Channel
 	// PREPARING
 	raw := strings.Split(rmsg.Payload, SEPARATOR)
-	switch len(raw){
+	switch len(raw) {
 	case 1:
 		sl.L.Debug("[%s] Got: %s", wpr.Name, rmsg.Payload)
 	case 2:
-		sender = raw[0]		
+		sender = raw[0]
 		value = raw[1]
 		switch strings.ToUpper(value) {
 		case STATUS:
@@ -235,7 +237,7 @@ func (wpr *Wrapper) ReadGroup() (channel, sender, value string, err error) {
 			return
 		}
 	default:
-		sender = raw[0]	
+		sender = raw[0]
 		value = strings.Join(raw[1:], SEPARATOR)
 		sl.L.Debug("[%s] Got from %s value: %s", wpr.Name, sender, value)
 	}
@@ -248,8 +250,8 @@ func (wpr *Wrapper) SendToService(channelName, value string) (err error) {
 	sl.L.Debug("[%s] Send to service %s: %s", wpr.Name, channelName, value)
 
 	int64Now := ciutils.TimeToInt64(ciutils.Now())
-	// sl.L.Debug("[%s] now: %v; NextTry: %v", wpr.Name, 
-	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(int64Now), "15:04:05"), 
+	// sl.L.Debug("[%s] now: %v; NextTry: %v", wpr.Name,
+	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(int64Now), "15:04:05"),
 	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(wpr.NextTry[channelName]), "15:04:05"))
 
 	if wpr.NextTry[channelName] > int64Now {
@@ -258,13 +260,13 @@ func (wpr *Wrapper) SendToService(channelName, value string) (err error) {
 		return
 	}
 
-	err = wpr.RClient.Publish(ctx, channelName, wpr.Name + SEPARATOR + value).Err()
+	err = wpr.RClient.Publish(ctx, channelName, wpr.Name+SEPARATOR+value).Err()
 	if err != nil {
 		sl.L.Debug("[%s] Error Publish:%s", wpr.Name, err.Error())
 		wpr.TimeDelay[channelName]++
 		//sl.L.Debug("[%s] TimeDelay: %v; NextTry: %v", wpr.Name, wpr.TimeDelay[channelName], wpr.NextTry[channelName])
 		if wpr.TimeDelay[channelName] > DEFAULT_TRYING_COUNT {
-			wpr.NextTry[channelName] = ciutils.TimeToInt64(ciutils.Now().Add(time.Duration(wpr.TimeDelay[channelName])*time.Second))
+			wpr.NextTry[channelName] = ciutils.TimeToInt64(ciutils.Now().Add(time.Duration(wpr.TimeDelay[channelName]) * time.Second))
 		}
 		return
 	}
@@ -297,8 +299,10 @@ func (wpr *Wrapper) RadioKatListner(signal chan os.Signal) {
 			var sender, value string
 			_, sender, value, err = wpr.ReadGroup()
 			if err != nil {
-				sl.L.Warning(err.Error())
-				time.Sleep(5 * time.Second)
+				if err.Error() != JUST_WAIT {
+					sl.L.Warning(err.Error())
+				}
+				time.Sleep(1 * time.Second)
 				continue
 			}
 
