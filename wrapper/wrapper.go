@@ -92,9 +92,7 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 		}
 	}
 
-	if sl.L == nil {
-		sl.CreateLogs(name, "./log/", logLevel, sizeLogFile)
-	}
+	sl.CreateLogs(name, "./log/", logLevel, sizeLogFile)
 
 	Wpr = &Wrapper{
 		StopChan:  make(chan struct{}),
