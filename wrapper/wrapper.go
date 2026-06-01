@@ -127,6 +127,12 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 	}
 	Wpr.Name = name
 
+	err = ciutils.MakeSureFileExists(PORT_FILE_PATH)
+	if err != nil {
+		sl.L.Warning("[%s] %s", name, err.Error())
+		return
+	}
+
 	var raw []byte
 	raw, err = os.ReadFile(PORT_FILE_PATH)
 	if err != nil {
