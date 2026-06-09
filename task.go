@@ -120,7 +120,7 @@ func (task *Task) LaunchInMemory(args []string) (err error) {
 func (task *Task) Check() (launched *os.Process, err error) {
 	if task.Cmd == nil {
 		err = fmt.Errorf("[task] %s not launched", task.Name)
-		sl.L.Warning("[task] %s err: %s ", task.Name, err.Error())
+		sl.L.Debug("[task] %s err: %s ", task.Name, err.Error())
 		task.Stopped()
 		return
 	}
@@ -132,7 +132,7 @@ func (task *Task) Check() (launched *os.Process, err error) {
 		return
 	}
 
-	err = task.Wpr.SendToService(task.Name, task.Name + " " + wrapper.STATUS)
+	err = task.Wpr.SendToService(task.Name, wrapper.STATUS, wrapper.GETINFO)
 	if err != nil {
 		sl.L.Warning("[master] %s err: %s ", task.Name, err.Error())
 		return
@@ -147,20 +147,20 @@ func (task *Task) Stop() (err error) {
 	var process *os.Process
 	process, err = task.Check()
 	if process == nil && err != nil {
-		sl.L.Warning("[task] %s err: %s ", task.Name, err.Error())
+		sl.L.Debug("[task] %s err: %s ", task.Name, err.Error())
 		return
 	}
 
 	switch task.Reminder {
 	case 0:
-		sl.L.Info("[task] try stop %s by pid %d; reminder No%d", task.Name, task.Cmd.Process.Pid, task.Reminder)
+		sl.L.Info("[task] try stop %s by pid %d; reminder No %d", task.Name, task.Cmd.Process.Pid, task.Reminder)
 		task.Cancel()
 		err = process.Signal(syscall.SIGTERM)
 		if err != nil {
 			sl.L.Warning("[task] %s err: %s ", task.Name, err.Error())
 		}
 	case KILLING_ATTEMPT:
-		sl.L.Info("[task] try kill %s by pid %d; reminder No%d", task.Name, task.Cmd.Process.Pid, task.Reminder)
+		sl.L.Info("[task] try kill %s by pid %d; reminder No %d", task.Name, task.Cmd.Process.Pid, task.Reminder)
 		task.Kill(process)
 		if err != nil {
 			sl.L.Warning("[task] %s err: %s ", task.Name, err.Error())

@@ -12,7 +12,7 @@ var (
 )
 
 // RadioKat implementation
-var rk = func(sender, value string) {
+var rk = func(sender, key string, value any) {
 	sl.L.Info("[%s] GOT {sender: %s value: %s}", Name, sender, value)
 }
 

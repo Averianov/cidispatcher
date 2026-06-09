@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/Averianov/cidispatcher/wrapper"
 	sl "github.com/Averianov/cisystemlog"
+	"github.com/Averianov/ciutils"
 )
 
 const (
@@ -18,7 +18,7 @@ func main() {
 	var err error
 	wpr := wrapper.CreateWrapper(Name, -1, -1)
 	// RadioKat implementation
-	wrapper.RadioKat = func(sender, value string) {
+	wrapper.RadioKat = func(sender, key string, value any) {
 		sl.L.Info("[%s] GOT {sender: %s value: %s}", Name, sender, value)
 	}
 
@@ -30,13 +30,13 @@ func main() {
 			sl.L.Warning("[%s] Stopping from Channel", wpr.Name)
 			return
 		default:
-			err = wpr.SendToService(logger, fmt.Sprintf("%s:msg-%d", wpr.Name, i))
+			err = wpr.SendToService(logger, wpr.Name, ciutils.IntToStr(i))
 			if err != nil {
 				sl.L.Warning(err.Error())
 				continue
 			}
 			if i == 10 {
-				fmt.Printf("[%s] Stopping by timeout\n", wpr.Name)
+				sl.L.Debug("[%s] Stopping by timeout", wpr.Name)
 				//wpr.StopService("worker1")
 				wpr.StopService(logger)
 				return

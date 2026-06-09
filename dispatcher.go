@@ -67,7 +67,7 @@ func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *D
 	sl.L.Info("[master] Radis server up on %s", mr.Port())
 
 	D.Wpr = wrapper.CreateWrapper(wrapper.MASTER, logLevel, sizeLogFile)
-	wrapper.RadioKat =  D.RadioKat
+	wrapper.RadioKat = D.RadioKat
 
 	// upload Payload Data
 	// sl.L.Debug("[master] ToGo: %v\n", ftgc.ToGo) // static map with byte data from FileToGoConverter
@@ -84,7 +84,7 @@ func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *D
 			}
 			for _, required := range pc.Required {
 				D.Tasks[pc.Name].Required = append(D.Tasks[pc.Name].Required, strings.ToUpper(required))
-			} 
+			}
 			pc.Env[wrapper.NAME] = pc.Name
 			pc.Env[wrapper.LOG_LEVEL] = ciutils.IntToStr(int(logLevel))
 			pc.Env[wrapper.SIZE_LOG_FILE] = ciutils.Int64ToStr(sizeLogFile)
@@ -102,7 +102,7 @@ func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *D
 		ElfPayload:  nil,
 		StMustStart: false,
 		Required:    []string{},
-		Wpr: D.Wpr,
+		Wpr:         D.Wpr,
 	}
 	return D
 }
@@ -113,45 +113,44 @@ func (d *Dispatcher) Launch() {
 	d.StatusChecker()
 }
 
-func (d *Dispatcher) RadioKat(sender, value string) {
-	//sl.L.Debug("[master] GOT: %s", value)
-	raw := strings.Split(value, wrapper.SEPARATOR)
-	switch len(raw) {
-	case 1: // to MASTER
-		if task, ok := d.Tasks[strings.ToUpper(sender)]; ok || strings.ToUpper(sender) == wrapper.SENDER {
-			sl.L.Debug("[master] got value: %s", value)
+func (d *Dispatcher) RadioKat(sender, key string, value any) {
+	sl.L.Debug("[master] GOT from %s: %s-%v", sender, key, value)
 
-			switch strings.ToUpper(value) {
-			case wrapper.LAUNCHED:
-				task.Started()
-			case wrapper.STOPPED:
-				task.Stopped()
+	if task, ok := d.Tasks[strings.ToUpper(sender)]; ok || strings.ToUpper(sender) == wrapper.SENDER {
+		sl.L.Debug("[master] got value: %s", value)
+
+		if val, ok := value.(string); ok {
+			switch key {
 			case wrapper.STATUS:
-				smsg := d.StatusAfterChanges()
-				d.Wpr.SendToService(task.Name, smsg)
-			case wrapper.EXIT:
-				sl.L.Alert("[master] got exit from application")
-				for _, t := range d.Tasks {
-					d.RecurciveStop(t)
+				switch strings.ToUpper(val) {
+				case wrapper.LAUNCHED:
+					task.Started()
+				case wrapper.STOPPED:
+					task.Stopped()
+				case wrapper.GETINFO:
+					smsg := d.StatusAfterChanges()
+					d.Wpr.SendToService(task.Name, wrapper.STATUS, smsg)
+				case wrapper.EXIT:
+					sl.L.Alert("[master] got exit from application")
+					for _, t := range d.Tasks {
+						d.RecurciveStop(t)
+					}
+				}
+
+			case wrapper.START:
+				if target, ok := d.Tasks[strings.ToUpper(val)]; ok {
+					target.Enable()
+				}
+
+			case wrapper.STOP:
+				if target, ok := d.Tasks[strings.ToUpper(val)]; ok {
+					sl.L.Alert("[master] start recurcive stopping tasks from %s", target.Name)
+					d.RecurciveStop(target)
 				}
 			}
+		} else {
+			sl.L.Debug("[master] get some value: %s", value)
 		}
-	case 2:	// to some SERVICE		
-		command := raw[0]
-		service := raw[1]
-		if task, ok := d.Tasks[strings.ToUpper(service)]; ok {
-			sl.L.Debug("[master] got command: %s service: %s", command, service)
-
-			switch strings.ToUpper(command) {
-			case wrapper.START:
-				task.Enable()
-			case wrapper.STOP:
-				sl.L.Alert("[master] start recurcive stopping tasks from %s", task.Name)
-				d.RecurciveStop(task)
-			}
-		}
-	default:
-		sl.L.Debug("[master] get some value: %s", value)
 	}
 }
 
@@ -203,11 +202,13 @@ func (d *Dispatcher) StatusChecker() (err error) {
 	tick := time.NewTicker(d.CheckDureation)
 	for {
 		select {
-		// case <-d.Wpr.StopChan:
-		// 	sl.L.Alert("[master] Get Cooperative shutdown signal. Shutdown all tasks")
-		// 	for _, task := range d.Tasks {
-		// 		task.StMustStart = false
-		// 	}
+		case <-d.Wpr.StopChan:
+			sl.L.Alert("[master] Get Cooperative shutdown signal. Shutdown all tasks")
+			for _, task := range d.Tasks {
+				task.StMustStart = false
+			}
+			close(d.Wpr.StopChan)
+			//d.Wpr = nil
 		case <-tick.C:
 			timeToCheck = true
 
@@ -229,7 +230,7 @@ func (d *Dispatcher) StatusChecker() (err error) {
 						continue
 					}
 					if task.StMustStart || task.StMustStart != task.StLaunched { // if not ready to shutdown - disable marker
-						sl.L.Debug("[master] some tasks still in work; daemon not ready to exit")
+						sl.L.Debug("[master] some tasks still in work; continue work")
 						readyToExit = false
 						break
 					}
@@ -284,6 +285,7 @@ func (d *Dispatcher) StatusChecker() (err error) {
 						}
 					case task.StMustStart && !task.StInProgress && task.StLaunched: // successfull launched
 						if !d.ReadyToWork(task) {
+							sl.L.Debug("[master] task %s not ready to work ", task.Name)
 							d.RecurciveEnable(task)         // enabling all main tasks
 							task.Reminder = KILLING_ATTEMPT // kill process who work without main processes
 							err = task.Stop()
@@ -335,7 +337,7 @@ func (d *Dispatcher) StatusBeforeChanges() (msg string) {
 		msg = msg + fmt.Sprintf("				[master]  %s	(Must: %v;	InProgress %v;	Current: %v)\n",
 			task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
 	}
-	sl.L.Debug("[master] \n\n\n################################\n%s", msg)
+	sl.L.Debug("[master] \n\n################################\n%s", msg)
 	return
 }
 
@@ -344,8 +346,6 @@ func (d *Dispatcher) StatusAfterChanges() (msg string) {
 		msg = msg + fmt.Sprintf("				[master]  %s	(Must: %v;	InProgress %v;	Current: %v)\n",
 			task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
 	}
-	sl.L.Debug("[master] \n\n%s\n################################\n\n\n", msg)
+	sl.L.Debug("[master] \n\n%s\n################################\n\n", msg)
 	return
 }
-
-
