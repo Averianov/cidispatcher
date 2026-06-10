@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"strings"
 	"syscall"
 	"time"
@@ -42,8 +43,7 @@ const (
 var (
 	Wpr *Wrapper
 
-	// Sender, Value receive from redis response
-	//RadioKat func(string, string) // function which preparing receive data from redis channel
+	// Sender, Key, Value receive from redis response
 	RadioKat func(sender, key string, value any) // function which preparing receive data from redis channel
 )
 
@@ -51,27 +51,27 @@ type Wrapper struct {
 	Name      string
 	RClient   *redis.Client
 	PubSub    *redis.PubSub
-	StopChan  chan struct{}
 	Env       map[string]string
 	TimeDelay map[string]int
 	NextTry   map[string]int64
+	StopChan  chan struct{}
+    stopOnce sync.Once
 }
 
 type RedisMessage struct {
-	Sender string `json:"sdr"`
-	Key    string `json:"key"`
-	Value  any    `json:"val"`
+	Sender string `json:"s"`
+	Key    string `json:"k"`
+	Value  any    `json:"v"`
 }
-
 
 // MarshalBinary converts the struct to bytes for Redis storage
 func (m *RedisMessage) MarshalBinary() (data []byte, err error) {
-    return json.Marshal(m)
+	return json.Marshal(m)
 }
 
 // UnmarshalBinary converts bytes from Redis back into the struct
 func (m *RedisMessage) UnmarshalBinary(data []byte) error {
-    return json.Unmarshal(data, m)
+	return json.Unmarshal(data, m)
 }
 
 // CreateWrapper got name current service and logLevel & sizeLogFile for cisystemlog
@@ -176,18 +176,21 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 	}
 
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
 	signal.Notify(sig, syscall.SIGUSR1) // for cooperative shutdown
+	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
+	//signal.Notify(sig, syscall.SIGQUIT) // for force shutdown
 	go Wpr.RadioKatListner(sig)
-	// go func() {
-	// 	<-sig
-	// 	sl.L.Alert("[%s] Cooperative shutdown (SIGUSR1)", Wpr.Name)
-	// 	close(Wpr.StopChan)
-	// 	time.Sleep(5 * time.Second)
-	// 	os.Exit(0)
-	// 	//panic(fmt.Sprintf("[%s] Cooperative shutdown (SIGUSR1)", Wpr.Name)) // temporary ??
-	// }()
 	return Wpr
+}
+
+func (wpr *Wrapper) Shutdown(reason string) {
+    wpr.stopOnce.Do(func() {
+        sl.L.Alert("[%s] shutdown: %s", wpr.Name, reason)
+		wpr.RegularStop()
+        close(wpr.StopChan)
+		time.Sleep(5 * time.Second)
+		os.Exit(0)
+    })
 }
 
 func (wpr *Wrapper) RegularStop() {
@@ -211,14 +214,13 @@ func (wpr *Wrapper) StopService(serviceName string) (err error) {
 	return
 }
 
-func (wpr *Wrapper) ReadGroup() (channel string, sender, key string, value any, err error) {
+func (wpr *Wrapper) ReadGroup() (channel, sender, key string, value any, err error) {
 	int64Now := ciutils.TimeToInt64(ciutils.Now())
 	// sl.L.Debug("[%s] now: %v; NextTry: %v", wpr.Name,
 	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(int64Now), "15:04:05"),
 	// 	ciutils.TimeToStringInFormat(ciutils.Int64ToTime(wpr.NextTry[wpr.Name]), "15:04:05"))
 
 	if wpr.NextTry[wpr.Name] > int64Now {
-		//err = fmt.Errorf("%s", "Too mutch error Receive from redis server; wait to next available try")
 		err = fmt.Errorf("%s", JUST_WAIT)
 		//sl.L.Debug("[%s] %s", wpr.Name, err.Error())
 		return
@@ -248,43 +250,13 @@ func (wpr *Wrapper) ReadGroup() (channel string, sender, key string, value any, 
 		return
 	}
 	sl.L.Debug("[%s] GOT from %s: %s-%v", wpr.Name, sender, key, value)
-	sender = input.Sender
-	key = input.Key
-	value = input.Value
-	// raw := strings.Split(rmsg.Payload, SEPARATOR)
-	// switch len(raw) {
-	// case 1:
-	// 	sl.L.Debug("[%s] Got: %s", wpr.Name, rmsg.Payload)
-	// case 2:
-	// 	sender = raw[0]
-	// 	value = raw[1]
-	// 	switch strings.ToUpper(value) {
-	// 	case STATUS:
-	// 		if wpr.Name == MASTER || wpr.Name == SENDER {
-	// 			break
-	// 		}
-
-	// 		err = Wpr.SendToService(strings.ToUpper(sender), wpr.Name, LAUNCHED)
-	// 		if err != nil {
-	// 			sl.L.Warning("[%s] %s", wpr.Name, err.Error())
-	// 			return
-	// 		}
-	// 		sender = ""
-	// 		value = ""
-	// 		return
-	// 	}
-	// default:
-	// 	sender = raw[0]
-	// 	value = strings.Join(raw[1:], SEPARATOR)
-	// 	sl.L.Debug("[%s] Got from %s value: %s", wpr.Name, sender, value)
-	// }
-	return
+	return wpr.Name, input.Sender, input.Key, input.Value, nil
 }
 
 func (wpr *Wrapper) SendToService(channelName, key string, value any) (err error) {
 	ctx := context.Background()
 	channelName = strings.ToUpper(channelName)
-	sl.L.Debug("[%s] Send to service %s: %s-%v", wpr.Name, channelName, key, value)
+	sl.L.Debug("[%s] Send to %s: %s-%v", wpr.Name, channelName, key, value)
 
 	int64Now := ciutils.TimeToInt64(ciutils.Now())
 	// sl.L.Debug("[%s] now: %v; NextTry: %v", wpr.Name,
@@ -314,7 +286,7 @@ func (wpr *Wrapper) SendToService(channelName, key string, value any) (err error
 	return
 }
 
-func (wpr *Wrapper) RadioKatListner(signal chan os.Signal) {
+func (wpr *Wrapper) RadioKatListner(signal <-chan os.Signal) {
 	var err error
 	defer func() {
 		if err != nil {
@@ -326,14 +298,18 @@ func (wpr *Wrapper) RadioKatListner(signal chan os.Signal) {
 	for {
 		select {
 		case <-signal:
-			sl.L.Alert("[%s] Got cooperative shutdown signal (SIGUSR1)", Wpr.Name)
-			wpr.RegularStop()
-			close(Wpr.StopChan)
-			time.Sleep(5 * time.Second)
-			os.Exit(0)
+			if wpr.Name == MASTER {
+				RadioKat(MASTER, STATUS, EXIT)
+				continue
+			}
+			wpr.Shutdown("Got cooperative shutdown signal (SIGUSR1)")
+			return
 		case <-wpr.StopChan:
-			sl.L.Debug("[%s] RadioKat stopped from StopChannel", wpr.Name)
-			wpr.RegularStop()
+			if wpr.Name == MASTER {
+				RadioKat(MASTER, STATUS, EXIT)
+				continue
+			}
+			wpr.Shutdown("RadioKat stopped from StopChannel")
 			return
 		default:
 			var sender, key string
@@ -349,7 +325,6 @@ func (wpr *Wrapper) RadioKatListner(signal chan os.Signal) {
 
 			sl.L.Debug("[%s] sender: %s key: %s value: %v", wpr.Name, sender, key, value)
 			if RadioKat != nil {
-				//RadioKat(input.Sender, input.Value)
 				RadioKat(sender, key, value)
 			}
 		}

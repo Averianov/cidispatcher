@@ -116,12 +116,11 @@ func (d *Dispatcher) Launch() {
 func (d *Dispatcher) RadioKat(sender, key string, value any) {
 	sl.L.Debug("[master] GOT from %s: %s-%v", sender, key, value)
 
-	if task, ok := d.Tasks[strings.ToUpper(sender)]; ok || strings.ToUpper(sender) == wrapper.SENDER {
-		sl.L.Debug("[master] got value: %s", value)
-
-		if val, ok := value.(string); ok {
-			switch key {
-			case wrapper.STATUS:
+	if val, ok := value.(string); ok || strings.ToUpper(sender) == wrapper.SENDER || strings.ToUpper(sender) == wrapper.MASTER {
+		sl.L.Debug("[master] got: %s-%s", key, val)
+		switch key {
+		case wrapper.STATUS:
+			if task, ok := d.Tasks[strings.ToUpper(sender)]; ok || strings.ToUpper(sender) == wrapper.MASTER{
 				switch strings.ToUpper(val) {
 				case wrapper.LAUNCHED:
 					task.Started()
@@ -132,38 +131,45 @@ func (d *Dispatcher) RadioKat(sender, key string, value any) {
 					d.Wpr.SendToService(task.Name, wrapper.STATUS, smsg)
 				case wrapper.EXIT:
 					sl.L.Alert("[master] got exit from application")
-					for _, t := range d.Tasks {
-						d.RecurciveStop(t)
-					}
-				}
-
-			case wrapper.START:
-				if target, ok := d.Tasks[strings.ToUpper(val)]; ok {
-					target.Enable()
-				}
-
-			case wrapper.STOP:
-				if target, ok := d.Tasks[strings.ToUpper(val)]; ok {
-					sl.L.Alert("[master] start recurcive stopping tasks from %s", target.Name)
-					d.RecurciveStop(target)
+					d.StopAll()
 				}
 			}
-		} else {
-			sl.L.Debug("[master] get some value: %s", value)
+
+		case wrapper.START:
+			if target, ok := d.Tasks[strings.ToUpper(val)]; ok {
+				target.Enable()
+			}
+
+		case wrapper.STOP:
+			if target, ok := d.Tasks[strings.ToUpper(val)]; ok {
+				sl.L.Alert("[master] start recurcive stopping tasks from %s", target.Name)
+				d.RecurciveStop(target)
+			}
 		}
+	} else {
+		sl.L.Debug("[master] get unknow value: %s-%s", key, value)
 	}
 }
 
 func (d *Dispatcher) RecurciveStop(task *Task) {
 	task.Disable()
 	task.Stop()
+	sl.L.Info("[master] task %s - looping marked to stop", task.Name)
 	for _, childrenTask := range D.Tasks { // potencial children task
 		for _, mainTaskName := range childrenTask.Required {
 			if task.Name == mainTaskName {
-				sl.L.Info("[master] task %s - looping stop children task %s", task.Name, childrenTask.Name)
 				d.RecurciveStop(childrenTask)
 			}
 		}
+	}
+}
+
+func (d *Dispatcher) StopAll() {
+	for _, t := range d.Tasks {
+		t.Disable()
+	}
+	for _, t := range d.Tasks {
+		t.Stop()
 	}
 }
 
@@ -192,8 +198,8 @@ func (d *Dispatcher) ReadyToWork(task *Task) (ready bool) {
 func (d *Dispatcher) StatusChecker() (err error) {
 	defer func() {
 		if err == nil {
-			err = fmt.Errorf("[master] Dispatcher was down")
-			sl.L.Warning(err.Error())
+			err = fmt.Errorf("dispatcher was down")
+			sl.L.Warning("[master] err: %s", err.Error())
 		}
 	}()
 	sl.L.Info("[master] start Dispatcher Checker")
@@ -203,12 +209,9 @@ func (d *Dispatcher) StatusChecker() (err error) {
 	for {
 		select {
 		case <-d.Wpr.StopChan:
-			sl.L.Alert("[master] Get Cooperative shutdown signal. Shutdown all tasks")
-			for _, task := range d.Tasks {
-				task.StMustStart = false
-			}
-			close(d.Wpr.StopChan)
-			//d.Wpr = nil
+			sl.L.Alert("[master] Get StopChan. Shutdown all tasks")
+			d.StopAll()
+			continue
 		case <-tick.C:
 			timeToCheck = true
 
@@ -216,12 +219,6 @@ func (d *Dispatcher) StatusChecker() (err error) {
 			if timeToCheck {
 				//### Tasks status before changes ####################################
 				d.StatusBeforeChanges()
-				// var msg string
-				// for _, task := range d.Tasks {
-				// 	msg = msg + fmt.Sprintf("				[master]  %s	(Must: %v;	InProgress %v;	Current: %v)\n",
-				// 		task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
-				// }
-				// sl.L.Debug("[master] \n\n\n################################\n%s", msg)
 
 				//### check Gracefull shutdown application ##########
 				readyToExit := true
@@ -245,7 +242,7 @@ func (d *Dispatcher) StatusChecker() (err error) {
 				}
 
 				if readyToExit {
-					sl.L.Warning("[master] Gracefull shutdown application")
+					sl.L.Info("[master] Gracefull shutdown application")
 					time.Sleep(time.Second * 3)
 					os.Exit(0)
 				}
@@ -317,12 +314,6 @@ func (d *Dispatcher) StatusChecker() (err error) {
 
 				//### Tasks status after changes ####################################
 				d.StatusAfterChanges()
-				// msg = ""
-				// for _, task := range d.Tasks {
-				// 	msg = msg + fmt.Sprintf("				[master]  %s	(Must: %v;	InProgress %v;	Current: %v)\n",
-				// 		task.Name, task.StMustStart, task.StInProgress, task.StLaunched)
-				// }
-				// sl.L.Debug("[master] \n%s\n################################\n\n\n", msg)
 
 				timeToCheck = false // for exclude many check trying
 			} else {

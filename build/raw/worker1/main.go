@@ -19,7 +19,7 @@ func main() {
 		switch key {
 		case wrapper.STOP:
 			sl.L.Info("[%s] try stop parent process", wpr.Name)
-			wpr.StopChan <- struct{}{} // stop parent process
+			close(wpr.StopChan)
 		default:
 			sl.L.Info("[%s] GOT: from %s: %s", wpr.Name, sender, value)
 		}

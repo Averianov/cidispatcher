@@ -21,7 +21,7 @@ const KILLING_ATTEMPT int = 3
 type Task struct {
 	sync.Mutex
 	Ctx          context.Context
-	Cancel       context.CancelFunc
+	// Cancel       context.CancelFunc
 	Name         string
 	ElfPayload   []byte
 	StMustStart  bool
@@ -72,8 +72,8 @@ func (task *Task) LaunchInMemory(args []string) (err error) {
 		sl.L.Warning("[task] %s exist; skip launch", task.Name)
 		return
 	}
-
-	task.Ctx, task.Cancel = context.WithCancel(context.Background())
+	task.Ctx = context.Background()
+	//task.Ctx, task.Cancel = context.WithCancel(context.Background())
 	path := fmt.Sprintf("/proc/self/fd/%d", fd)
 	sl.L.Info("[task] Up %s by address %s %s", task.Name, path, args)
 	task.Cmd = exec.CommandContext(task.Ctx, path, args...)
@@ -119,7 +119,7 @@ func (task *Task) LaunchInMemory(args []string) (err error) {
 // Check task as runned
 func (task *Task) Check() (launched *os.Process, err error) {
 	if task.Cmd == nil {
-		err = fmt.Errorf("[task] %s not launched", task.Name)
+		err = fmt.Errorf("%s", "not launched")
 		sl.L.Debug("[task] %s err: %s ", task.Name, err.Error())
 		task.Stopped()
 		return
@@ -134,7 +134,7 @@ func (task *Task) Check() (launched *os.Process, err error) {
 
 	err = task.Wpr.SendToService(task.Name, wrapper.STATUS, wrapper.GETINFO)
 	if err != nil {
-		sl.L.Warning("[master] %s err: %s ", task.Name, err.Error())
+		sl.L.Warning("[task] %s err: %s ", task.Name, err.Error())
 		return
 	}
 
@@ -154,7 +154,12 @@ func (task *Task) Stop() (err error) {
 	switch task.Reminder {
 	case 0:
 		sl.L.Info("[task] try stop %s by pid %d; reminder No %d", task.Name, task.Cmd.Process.Pid, task.Reminder)
-		task.Cancel()
+		err = process.Signal(syscall.SIGUSR1)
+		if err != nil {
+			sl.L.Warning("[task] %s err: %s ", task.Name, err.Error())
+		}
+	case 1:
+		sl.L.Info("[task] try stop %s by pid %d; reminder No %d", task.Name, task.Cmd.Process.Pid, task.Reminder)
 		err = process.Signal(syscall.SIGTERM)
 		if err != nil {
 			sl.L.Warning("[task] %s err: %s ", task.Name, err.Error())
