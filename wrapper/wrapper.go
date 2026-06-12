@@ -249,7 +249,7 @@ func (wpr *Wrapper) ReadGroup() (channel, sender, key string, value any, err err
 		sl.L.Warning(err.Error())
 		return
 	}
-	sl.L.Debug("[%s] GOT from %s: %s-%v", wpr.Name, sender, key, value)
+	sl.L.Debug("[%s] GOT from %s: %s-%v", wpr.Name, input.Sender, input.Key, input.Value)
 	return wpr.Name, input.Sender, input.Key, input.Value, nil
 }
 
