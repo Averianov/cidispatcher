@@ -55,17 +55,17 @@ func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *D
 	if err != nil {
 		panic(fmt.Sprintf("[master] %s", err.Error()))
 	}
-
-	var f *os.File
-	f, err = os.OpenFile(wrapper.PORT_FILE_PATH, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		panic(fmt.Sprintf("[master] %s", err.Error()))
-	}
-	f.WriteString(mr.Port())
-	f.Close()
-
 	sl.L.Info("[master] Radis server up on %s", mr.Port())
 
+	// var f *os.File
+	// f, err = os.OpenFile(wrapper.PORT_FILE_PATH, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
+	// if err != nil {
+	// 	panic(fmt.Sprintf("[master] %s", err.Error()))
+	// }
+	// f.WriteString(mr.Port())
+	// f.Close()
+
+	os.Setenv(wrapper.CI_REDIS_PORT, mr.Port())
 	D.Wpr = wrapper.CreateWrapper(wrapper.MASTER, logLevel, sizeLogFile)
 	wrapper.RadioKat = D.RadioKat
 
@@ -88,6 +88,7 @@ func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *D
 			pc.Env[wrapper.NAME] = pc.Name
 			pc.Env[wrapper.LOG_LEVEL] = ciutils.IntToStr(int(logLevel))
 			pc.Env[wrapper.SIZE_LOG_FILE] = ciutils.Int64ToStr(sizeLogFile)
+			pc.Env[wrapper.CI_REDIS_PORT] = mr.Port()
 			for name, val := range pc.Env {
 				D.Tasks[pc.Name].Env = append(D.Tasks[pc.Name].Env, fmt.Sprintf("%s=%s", strings.ToUpper(name), strings.ToUpper(val)))
 			}
@@ -108,7 +109,7 @@ func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *D
 }
 
 func (d *Dispatcher) Launch() {
-	defer os.Remove(wrapper.PORT_FILE_PATH)
+	//defer os.Remove(wrapper.PORT_FILE_PATH)
 	time.Sleep(3 * time.Second)
 	d.StatusChecker()
 }

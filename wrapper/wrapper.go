@@ -23,7 +23,8 @@ const (
 	LOG_LEVEL      string = "LOGLEVEL"
 	SIZE_LOG_FILE  string = "SIZE_LOG_FILE"
 	TIMELOCATION   string = "TIMELOCATION"
-	PORT_FILE_PATH string = "./port"
+	CI_REDIS_PORT 	   string = "CIREDISPORT"
+	//PORT_FILE_PATH string = "./port"
 
 	DEFAULT_TRYING_COUNT int    = 2
 	JUST_WAIT            string = "jw"
@@ -146,19 +147,28 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 	}
 	Wpr.Name = name
 
-	_, err = ciutils.MakeSureFileExists(PORT_FILE_PATH)
-	if err != nil {
+	// _, err = ciutils.MakeSureFileExists(PORT_FILE_PATH)
+	// if err != nil {
+	// 	sl.L.Warning("[%s] %s", name, err.Error())
+	// 	return
+	// }
+
+	// var raw []byte
+	// raw, err = os.ReadFile(PORT_FILE_PATH)
+	// if err != nil {
+	// 	sl.L.Warning("[%s] %s", name, err.Error())
+	// 	return
+	// }
+	// rport := string(raw)
+
+	var rport string
+	var ok bool
+	if rport, ok = os.LookupEnv(CI_REDIS_PORT); !ok && name == MASTER {
+		err = fmt.Errorf("The environment %s must be set", CI_REDIS_PORT)
 		sl.L.Warning("[%s] %s", name, err.Error())
 		return
 	}
 
-	var raw []byte
-	raw, err = os.ReadFile(PORT_FILE_PATH)
-	if err != nil {
-		sl.L.Warning("[%s] %s", name, err.Error())
-		return
-	}
-	rport := string(raw)
 	sl.L.Debug("[%s] connect to Redis on: %s", name, rport)
 	Wpr.RClient = redis.NewClient(&redis.Options{
 		Addr:             "localhost:" + rport,
