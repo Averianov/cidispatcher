@@ -338,6 +338,11 @@ func (wpr *Wrapper) RadioKatListner(signal <-chan os.Signal) {
 				continue
 			}
 
+			if  val, ok := value.(string); ok && key == STATUS && strings.ToUpper(val) == GETINFO { // && strings.ToUpper(sender) == MASTER{
+				d.Wpr.SendToService(MASTER, LAUNCHED)
+				continue
+			}
+
 			sl.L.Debug("[%s] sender: %s key: %s value: %v", wpr.Name, sender, key, value)
 			if RadioKat != nil {
 				RunRadioKat(sender, key, value)
