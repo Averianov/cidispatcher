@@ -308,10 +308,10 @@ func (wpr *Wrapper) RadioKatListner(signal <-chan os.Signal) {
 	for {
 		select {
 		case <-signal:
-			if wpr.Name == MASTER {
+			//if wpr.Name == MASTER {
 				RadioKat(MASTER, STATUS, EXIT)
-				continue
-			}
+			//	continue
+			//}
 			wpr.Shutdown("Got cooperative shutdown signal (SIGUSR1)")
 			return
 		case <-wpr.StopChan:
@@ -320,6 +320,7 @@ func (wpr *Wrapper) RadioKatListner(signal <-chan os.Signal) {
 				continue
 			}
 			wpr.Shutdown("RadioKat stopped from StopChannel")
+			close(wpr.StopChan)
 			return
 		default:
 			var sender, key string

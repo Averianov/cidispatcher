@@ -152,12 +152,12 @@ func (task *Task) Stop() (err error) {
 	}
 
 	switch task.Reminder {
-	case 0:
-		sl.L.Info("[task] try stop %s by pid %d; reminder No %d", task.Name, task.Cmd.Process.Pid, task.Reminder)
-		err = process.Signal(syscall.SIGUSR1)
-		if err != nil {
-			sl.L.Warning("[task] %s err: %s ", task.Name, err.Error())
-		}
+	// case 0:
+	// 	sl.L.Info("[task] try cooperative stop %s by pid %d; reminder No %d", task.Name, task.Cmd.Process.Pid, task.Reminder)
+	// 	err = process.Signal(syscall.SIGUSR1)
+	// 	if err != nil {
+	// 		sl.L.Warning("[task] %s err: %s ", task.Name, err.Error())
+	// 	}
 	case 1:
 		sl.L.Info("[task] try stop %s by pid %d; reminder No %d", task.Name, task.Cmd.Process.Pid, task.Reminder)
 		err = process.Signal(syscall.SIGTERM)
@@ -173,7 +173,7 @@ func (task *Task) Stop() (err error) {
 	}
 
 	task.Reminder++
-	sl.L.Info("[task] %s reminder No%d before killed", task.Name, task.Reminder)
+	sl.L.Info("[task] %s reminder No %d before killed", task.Name, task.Reminder)
 	return
 }
 

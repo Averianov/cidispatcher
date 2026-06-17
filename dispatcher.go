@@ -118,7 +118,7 @@ func (d *Dispatcher) RadioKat(sender, key string, value any) {
 	sl.L.Debug("[master] GOT from %s: %s-%v", sender, key, value)
 
 	if val, ok := value.(string); ok || strings.ToUpper(sender) == wrapper.SENDER || strings.ToUpper(sender) == wrapper.MASTER {
-		sl.L.Debug("[master] got: %s-%s", key, val)
+		//sl.L.Debug("[master] got: %s-%s", key, val)
 		switch key {
 		case wrapper.STATUS:
 			if task, ok := d.Tasks[strings.ToUpper(sender)]; ok || strings.ToUpper(sender) == wrapper.MASTER{
@@ -209,10 +209,11 @@ func (d *Dispatcher) StatusChecker() (err error) {
 	tick := time.NewTicker(d.CheckDureation)
 	for {
 		select {
-		case <-d.Wpr.StopChan:
-			sl.L.Alert("[master] Get StopChan. Shutdown all tasks")
-			d.StopAll()
-			continue
+		// case <-d.Wpr.StopChan:
+		// 	sl.L.Alert("[master] Get StopChan. Shutdown all tasks")
+		// 	d.StopAll()
+		// 	close(d.Wpr.StopChan)
+		// 	continue
 		case <-tick.C:
 			timeToCheck = true
 
