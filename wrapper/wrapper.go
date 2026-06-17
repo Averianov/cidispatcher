@@ -339,7 +339,7 @@ func (wpr *Wrapper) RadioKatListner(signal <-chan os.Signal) {
 			}
 
 			if  val, ok := value.(string); ok && key == STATUS && strings.ToUpper(val) == GETINFO { // && strings.ToUpper(sender) == MASTER{
-				d.Wpr.SendToService(MASTER, LAUNCHED)
+				wpr.SendToService(MASTER, LAUNCHED)
 				continue
 			}
 
