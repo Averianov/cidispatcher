@@ -18,9 +18,9 @@ func main() {
 	var err error
 	wpr := wrapper.CreateWrapper(Name, -1, -1)
 	// RadioKat implementation
-	wrapper.RadioKat = func(sender, key string, value any) {
-		sl.L.Info("[%s] GOT {sender: %s value: %s}", Name, sender, value)
-	}
+	// wrapper.RadioKat = func(sender, key string, value any) {
+	// 	sl.L.Info("[%s] GOT {sender: %s value: %s}", Name, sender, value)
+	// }
 
 	defer sl.L.Warning("[%s] End task by timeout", wpr.Name)
 	var i int = 0

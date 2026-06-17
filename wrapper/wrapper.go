@@ -186,9 +186,11 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 	}
 
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGUSR1) // for cooperative shutdown
-	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
-	//signal.Notify(sig, syscall.SIGQUIT) // for force shutdown
+	if name == MASTER {
+		signal.Notify(sig, syscall.SIGUSR1) // for cooperative shutdown
+		signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
+		//signal.Notify(sig, syscall.SIGQUIT) // for force shutdown
+	}
 	go Wpr.RadioKatListner(sig)
 	return Wpr
 }
@@ -308,15 +310,17 @@ func (wpr *Wrapper) RadioKatListner(signal <-chan os.Signal) {
 	for {
 		select {
 		case <-signal:
-			//if wpr.Name == MASTER {
-				RadioKat(MASTER, STATUS, EXIT)
-			//	continue
-			//}
+			if wpr.Name == MASTER {
+				RunRadioKat(MASTER, STATUS, EXIT)
+				continue
+			}
+			
+			wpr.SendToService(MASTER, STATUS, EXIT)
 			wpr.Shutdown("Got cooperative shutdown signal (SIGUSR1)")
 			return
 		case <-wpr.StopChan:
 			if wpr.Name == MASTER {
-				RadioKat(MASTER, STATUS, EXIT)
+				RunRadioKat(MASTER, STATUS, EXIT)
 				continue
 			}
 			wpr.Shutdown("RadioKat stopped from StopChannel")
@@ -336,8 +340,14 @@ func (wpr *Wrapper) RadioKatListner(signal <-chan os.Signal) {
 
 			sl.L.Debug("[%s] sender: %s key: %s value: %v", wpr.Name, sender, key, value)
 			if RadioKat != nil {
-				RadioKat(sender, key, value)
+				RunRadioKat(sender, key, value)
 			}
 		}
+	}
+}
+
+func RunRadioKat(sender, key string, value any) {
+	if RadioKat != nil {
+		RadioKat(sender, key, value)
 	}
 }
