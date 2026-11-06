@@ -37,6 +37,10 @@ type Dispatcher struct {
 	Tasks          map[string]*Task
 }
 
+func init() {
+	sl.L.SetFileLevel(sl.INFO)
+}
+
 func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *Dispatcher) {
 	var err error
 

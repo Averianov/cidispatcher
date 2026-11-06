@@ -26,6 +26,6 @@ func main() {
 	dspr.ProcessConfigs[WORKER2] = dspr.ProcessConfig{WORKER2, false, []string{LOGGER}, map[string]string{}}
 	dspr.ProcessConfigs[WORKER3] = dspr.ProcessConfig{WORKER3, false, []string{LOGGER}, map[string]string{}}
 
-	dspr.CreateDispatcher(0, 4, 1)
+	dspr.CreateDispatcher(0, 1, 1)
 	dspr.D.Launch()
 }

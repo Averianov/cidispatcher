@@ -65,6 +65,10 @@ type RedisMessage struct {
 	Value  any    `json:"v"`
 }
 
+func init() {
+	sl.L.SetFileLevel(sl.INFO)
+}
+
 // MarshalBinary converts the struct to bytes for Redis storage
 func (m *RedisMessage) MarshalBinary() (data []byte, err error) {
 	return json.Marshal(m)
@@ -146,20 +150,6 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 		name = val
 	}
 	Wpr.Name = name
-
-	// _, err = ciutils.MakeSureFileExists(PORT_FILE_PATH)
-	// if err != nil {
-	// 	sl.L.Warning("[%s] %s", name, err.Error())
-	// 	return
-	// }
-
-	// var raw []byte
-	// raw, err = os.ReadFile(PORT_FILE_PATH)
-	// if err != nil {
-	// 	sl.L.Warning("[%s] %s", name, err.Error())
-	// 	return
-	// }
-	// rport := string(raw)
 
 	var rport string
 	var ok bool

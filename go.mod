@@ -1,11 +1,11 @@
 module github.com/Averianov/cidispatcher
 
-go 1.25.6
+go 1.26.0
 
 require (
-	github.com/Averianov/cisystemlog v0.1.7
-	github.com/Averianov/ciutils v0.0.20
-	github.com/Averianov/ftgc v0.0.6
+	github.com/Averianov/cisystemlog v0.2.2
+	github.com/Averianov/ciutils v0.1.2
+	github.com/Averianov/ftgc v0.0.7
 	github.com/alicebob/miniredis/v2 v2.36.1
 	github.com/redis/go-redis/v9 v9.17.2
 )
@@ -15,7 +15,7 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
-	golang.org/x/crypto v0.54.0 // indirect
-	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/text v0.40.0 // indirect
+	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 )
