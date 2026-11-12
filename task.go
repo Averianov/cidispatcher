@@ -34,6 +34,11 @@ type Task struct {
 	Env          []string
 }
 
+
+func init() {
+	sl.L.SetFileLevel(sl.INFO)
+}
+
 func (task *Task) LaunchInMemory(args []string) (err error) {
 
 	namePtr, err := syscall.BytePtrFromString(task.Name)

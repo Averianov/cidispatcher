@@ -3,7 +3,7 @@ module github.com/Averianov/cidispatcher
 go 1.26.0
 
 require (
-	github.com/Averianov/cisystemlog v0.2.2
+	github.com/Averianov/cisystemlog v0.2.3
 	github.com/Averianov/ciutils v0.1.2
 	github.com/Averianov/ftgc v0.0.7
 	github.com/alicebob/miniredis/v2 v2.36.1

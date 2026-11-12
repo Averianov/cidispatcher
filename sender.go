@@ -9,14 +9,17 @@ import (
 	sl "github.com/Averianov/cisystemlog"
 )
 
+func init() {
+	sl.L.SetFileLevel(sl.INFO)
+}
+
 func ManualSender() {
 	ch := flag.String("ch", wrapper.MASTER, "channel")
 	key := flag.String("key", wrapper.STATUS, "key")
 	msg := flag.String("m", wrapper.GETINFO, "message")
-	l := flag.Int("l", 3, "log level")
 	flag.Parse()
 
-	wpr := wrapper.CreateWrapper(wrapper.SENDER, int32(*l), 0)
+	wpr := wrapper.CreateWrapper(wrapper.SENDER)
 
 	go func() {
 		_, sender, key, value, err := wpr.ReadGroup()

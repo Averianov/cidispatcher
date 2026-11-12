@@ -18,7 +18,7 @@ var rk = func(sender, key string, value any) {
 
 func main() {
 	wrapper.RadioKat = rk
-	wrapper.CreateWrapper(Name, -1, -1)
+	wrapper.CreateWrapper(Name)
 
 	//### Work #################################################################
 	for {

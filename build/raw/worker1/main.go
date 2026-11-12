@@ -12,7 +12,7 @@ const (
 
 func main() {
 
-	wpr := wrapper.CreateWrapper(Name, -1, -1)
+	wpr := wrapper.CreateWrapper(Name)
 
 	// RadioKat implementation
 	wrapper.RadioKat = func(sender, key string, value any) {

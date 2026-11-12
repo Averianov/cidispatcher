@@ -80,7 +80,7 @@ func (m *RedisMessage) UnmarshalBinary(data []byte) error {
 }
 
 // CreateWrapper got name current service and logLevel & sizeLogFile for cisystemlog
-func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper) {
+func CreateWrapper(name string) (wpr *Wrapper) {
 	var err error
 	defer func() {
 		if err != nil {
@@ -93,30 +93,6 @@ func CreateWrapper(name string, logLevel int32, sizeLogFile int64) (wpr *Wrapper
 		return
 	}
 	name = strings.ToUpper(name)
-
-	if logLevel < 1 {
-		val, ok := os.LookupEnv(LOG_LEVEL)
-		if !ok {
-			err = fmt.Errorf("[%s] no log level in env", name)
-			return
-		}
-		logLevel = int32(ciutils.StrToInt(val))
-		if logLevel == 0 {
-			err = fmt.Errorf("[%s] wrong log level in env", name)
-			return
-		}
-	}
-
-	if sizeLogFile < 0 {
-		val, ok := os.LookupEnv(SIZE_LOG_FILE)
-		if !ok {
-			sizeLogFile = 0
-		} else {
-			sizeLogFile = ciutils.StrToInt64(val)
-		}
-	}
-
-	sl.CreateLogs(name, "./log/", logLevel, sizeLogFile)
 
 	Wpr = &Wrapper{
 		StopChan:  make(chan struct{}),

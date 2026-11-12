@@ -10,7 +10,6 @@ import (
 
 	"github.com/Averianov/cidispatcher/wrapper"
 	sl "github.com/Averianov/cisystemlog"
-	"github.com/Averianov/ciutils"
 	ftgc "github.com/Averianov/ftgc"
 	"github.com/alicebob/miniredis/v2"
 )
@@ -41,7 +40,7 @@ func init() {
 	sl.L.SetFileLevel(sl.INFO)
 }
 
-func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *Dispatcher) {
+func CreateDispatcher(cd time.Duration) (d *Dispatcher) {
 	var err error
 
 	if cd == 0 {
@@ -59,22 +58,14 @@ func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *D
 	if err != nil {
 		panic(fmt.Sprintf("[master] %s", err.Error()))
 	}
-	sl.L.Info("[master] Radis server up on %s", mr.Port())
-
-	// var f *os.File
-	// f, err = os.OpenFile(wrapper.PORT_FILE_PATH, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
-	// if err != nil {
-	// 	panic(fmt.Sprintf("[master] %s", err.Error()))
-	// }
-	// f.WriteString(mr.Port())
-	// f.Close()
+	sl.L.Debug("[master] Radis server up on %s", mr.Port())
 
 	os.Setenv(wrapper.CI_REDIS_PORT, mr.Port())
-	D.Wpr = wrapper.CreateWrapper(wrapper.MASTER, logLevel, sizeLogFile)
+	D.Wpr = wrapper.CreateWrapper(wrapper.MASTER)
 	wrapper.RadioKat = D.RadioKat
 
 	// upload Payload Data
-	// sl.L.Debug("[master] ToGo: %v\n", ftgc.ToGo) // static map with byte data from FileToGoConverter
+	sl.L.Debug("[master] ToGo: %v\n", ftgc.ToGo) // static map with byte data from FileToGoConverter
 	for _, pc := range ProcessConfigs {
 		pc.Name = strings.ToUpper(pc.Name)
 		if raw, ok := ftgc.ToGo[pc.Name]; ok { // name in map FileToGoConverter in uppercase; name in uppercase
@@ -90,8 +81,6 @@ func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *D
 				D.Tasks[pc.Name].Required = append(D.Tasks[pc.Name].Required, strings.ToUpper(required))
 			}
 			pc.Env[wrapper.NAME] = pc.Name
-			pc.Env[wrapper.LOG_LEVEL] = ciutils.IntToStr(int(logLevel))
-			pc.Env[wrapper.SIZE_LOG_FILE] = ciutils.Int64ToStr(sizeLogFile)
 			pc.Env[wrapper.CI_REDIS_PORT] = mr.Port()
 			for name, val := range pc.Env {
 				D.Tasks[pc.Name].Env = append(D.Tasks[pc.Name].Env, fmt.Sprintf("%s=%s", strings.ToUpper(name), strings.ToUpper(val)))
@@ -113,7 +102,6 @@ func CreateDispatcher(cd time.Duration, logLevel int32, sizeLogFile int64) (d *D
 }
 
 func (d *Dispatcher) Launch() {
-	//defer os.Remove(wrapper.PORT_FILE_PATH)
 	time.Sleep(3 * time.Second)
 	d.StatusChecker()
 }
@@ -122,7 +110,7 @@ func (d *Dispatcher) RadioKat(sender, key string, value any) {
 	sl.L.Debug("[master] GOT from %s: %s-%v", sender, key, value)
 
 	if val, ok := value.(string); ok || strings.ToUpper(sender) == wrapper.SENDER || strings.ToUpper(sender) == wrapper.MASTER {
-		//sl.L.Debug("[master] got: %s-%s", key, val)
+		sl.L.Debug("[master] got: %s-%s", key, val)
 		switch key {
 		case wrapper.STATUS:
 			if task, ok := d.Tasks[strings.ToUpper(sender)]; ok || strings.ToUpper(sender) == wrapper.MASTER{
